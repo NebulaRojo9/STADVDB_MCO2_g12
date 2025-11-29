@@ -69,10 +69,11 @@ export async function routeUpdateToNode(req, res) {
     try {
         const updates = req.body;
         const id = req.params.id;
+        const startYear = req.params.startYear;
     
         let vmid = 1;
     
-        if (updates.startYear < 2000)
+        if (startYear < 2000)
             vmid = 2;
         else
             vmid = 3;

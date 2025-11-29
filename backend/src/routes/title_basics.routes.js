@@ -9,6 +9,6 @@ router.post('/:vmid/create', titleBasicsController.addRowToNode);
 router.put('/:vmid/update/:id', titleBasicsController.updateRowByIDInNode)
 
 router.post('/routeCreate', titleBasicsController.routeCreateToNode)
-router.put('/routeUpdate/:id', titleBasicsController.routeUpdateToNode);
+router.put('/routeUpdate/:id/:startYear', titleBasicsController.routeUpdateToNode);
 
 export default router;
