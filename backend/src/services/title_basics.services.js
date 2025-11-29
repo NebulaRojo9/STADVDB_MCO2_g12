@@ -8,7 +8,7 @@ export async function init() {
 }
 
 // GET '/title-basics/:vmid/getAll'
-export async function getAll(vmid) {
+export async function getAllFromNode(vmid) {
     const db = await getDB(vmid);
     const [title_basics] = await db.query('SELECT * FROM title_basics');
     
@@ -16,7 +16,7 @@ export async function getAll(vmid) {
 }
 
 // POST '/:vmid/create'
-export async function addRow(vmid, data) {
+export async function addRowToNode(vmid, data) {
     const { 
         tconst,
         titleType, 
@@ -52,7 +52,7 @@ export async function addRow(vmid, data) {
 }
 
 // PUT '/:vmid/update/:id'
-export async function updateRowByID(vmid, id, updates) {
+export async function updateRowByIDInNode(vmid, id, updates) {
     const db = await getDB(vmid);
     const conn = await db.getConnection();
 
@@ -90,5 +90,30 @@ export async function updateRowByID(vmid, id, updates) {
         throw error;
     } finally {
         await conn.release();
+    }
+}
+
+export async function routeCreateToNode(vmid, data) {
+    // check vmid and see if it should go to node 2 or 3
+    // copy it to node 1 regardless
+
+    const resultCentral = await addRowToNode(1, data);
+
+    if (vmid === 2 || vmid === 3) {
+        const resultFragment = await addRowToNode(vmid, data);
+
+        return { central: resultCentral, node: resultFragment };
+    }
+}
+
+export async function routeUpdateToNode(vmid, id, updates) {
+    // check vmid and see if it should go to node 2 or 3
+    // copy it to node 1 regardless
+
+    const resultCentral = await updateRowByIDInNode(1, id, updates);
+
+    if (vmid === 2 || vmid === 3) {
+        const resultFragment = await updateRowByIDInNode(vmid, id, updates);
+        return { central: resultCentral, node: resultFragment };
     }
 }
