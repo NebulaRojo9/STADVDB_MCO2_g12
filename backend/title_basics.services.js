@@ -52,12 +52,30 @@ export async function addRow(data) {
     }
 }
 
-// PUT 
+// PUT '/vm/:vmid/update/:id'
 export async function updateRowByID(vmid, id, updates) {
     const db = await getDB(vmid);
 
+    const allowedColumns = [
+        'titleType',
+        'primaryTitle',
+        'originalTitle',
+        'isAdult',
+        'runtimeMinutes',
+        'genres'
+    ];
+
+    const keys = Object.keys(updates);
+
+    if (keys.length !== 1 || !allowedColumns.includes(keys[0])) {
+        throw new Error('Only one valid column can be updated at a time.');
+    }
+
+    const column = keys[0];
+    const value = updates[column];
+
     const [result] = await db.execute(
-        `UPDATE title_basics SET runtimeMinutes = ? WHERE id = ?`,
+        `UPDATE title_basics SET \`${column}\` = ? WHERE Tconst = ?`,
         [value, id]
     )
 
