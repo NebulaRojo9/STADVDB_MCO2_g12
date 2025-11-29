@@ -4,8 +4,11 @@ import * as titleBasicsController from '../controllers/title_basics.controller.j
 const router = Router();
 
 router.get('/init', titleBasicsController.init);
-router.get('/vm/:vmid', titleBasicsController.getAll);
-router.post('/create', titleBasicsController.addRow);
-router.put('/vm/update/:id', titleBasicsController.updateRowByID)
+router.get('/:vmid/getAll', titleBasicsController.getAllFromNode);
+router.post('/:vmid/create', titleBasicsController.addRowToNode);
+router.put('/:vmid/update/:id', titleBasicsController.updateRowByIDInNode)
+
+router.post('/routeCreate', titleBasicsController.routeCreateToNode)
+router.put('/routeUpdate/:id/:startYear', titleBasicsController.routeUpdateToNode);
 
 export default router;

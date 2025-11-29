@@ -7,16 +7,16 @@ export async function init() {
     return;
 }
 
-// GET '/title-basics/:vmid'
-export async function getAll(vmid) {
+// GET '/title-basics/:vmid/getAll'
+export async function getAllFromNode(vmid) {
     const db = await getDB(vmid);
     const [title_basics] = await db.query('SELECT * FROM title_basics');
     
     return title_basics
 }
 
-// POST '/addRow'
-export async function addRow(data) {
+// POST '/:vmid/create'
+export async function addRowToNode(vmid, data) {
     const { 
         tconst,
         titleType, 
@@ -28,135 +28,92 @@ export async function addRow(data) {
         runtimeMinutes, 
         genres 
     } = data;
-    
-    let vmid;
+        
+    const db = await getDB(vmid);
 
-    // Perform fragmentation here
-    if (startYear < 2000) {
-        vmid = 2;
-    } else {
-        vmid = 3;
-    }
-    
-    const dbCentral = await getDB(1);
-    const dbFragment = await getDB(vmid);
-
-    const connCentral = await dbCentral.getConnection();
-    const connFragment = await dbFragment.getConnection();
+    const conn = await db.getConnection();
 
     try {
-        await connCentral.beginTransaction();
+        await conn.beginTransaction();
 
-        const [rows] = await connCentral.execute(
+        const [rows] = await conn.execute(
             `INSERT INTO title_basics (tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres]
         )
 
-        await connCentral.commit();
+        await conn.commit();
     } catch (error) {
-        await connCentral.rollback();
+        await conn.rollback();
         throw error;
     } finally {
-        connCentral.release();
-    }
-
-    try {
-        await connFragment.beginTransaction();
-
-        const [rows] = await connFragment.execute(
-            `INSERT INTO title_basics (tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres]
-        )
-
-        await connFragment.commit();
-
-        return rows
-    } catch (error) {
-        await connFragment.rollback();
-        throw error;
-    } finally {
-        connFragment.release();
+        conn.release();
     }
 }
 
-// PUT '/vm/:vmid/update/:id'
-export async function updateRowByID(id, updates) {
-    const dbCentral = await getDB(1);
-    const connCentral = await dbCentral.getConnection();
-
-    let result1, result2;
+// PUT '/:vmid/update/:id'
+export async function updateRowByIDInNode(vmid, id, updates) {
+    const db = await getDB(vmid);
+    const conn = await db.getConnection();
 
     try {
-        await connCentral.beginTransaction();
+        await conn.beginTransaction();
 
-        const [centralResult] = await connCentral.execute(
-            `SELECT startYear FROM title_basics WHERE Tconst = ?`,
-            [id]
-        )
+        const allowedColumns = [
+            'titleType',
+            'primaryTitle',
+            'originalTitle',
+            'isAdult',
+            'runtimeMinutes',
+            'genres'
+        ];
+        
+        const keys = Object.keys(updates);
     
-        let vmid;
-    
-        if (centralResult.length == 0) {
-            throw new Error('Record not found in central database.');
-        } else {
-            var startYear = centralResult[0].startYear;
-    
-            if (startYear < 2000)
-                vmid = 2;
-            else
-                vmid = 3;
+        if (keys.length !== 1 || !allowedColumns.includes(keys[0])) {
+            throw new Error('Only one valid column can be updated at a time.');
         }
-
-        const dbFragment = await getDB(vmid);
-        const connFragment = await dbFragment.getConnection();
-
-        try {
-            await connFragment.beginTransaction();
-            const allowedColumns = [
-                'titleType',
-                'primaryTitle',
-                'originalTitle',
-                'isAdult',
-                'runtimeMinutes',
-                'genres'
-            ];
-            
-            const keys = Object.keys(updates);
         
-            if (keys.length !== 1 || !allowedColumns.includes(keys[0])) {
-                throw new Error('Only one valid column can be updated at a time.');
-            }
-        
-            const column = keys[0];
-            const value = updates[column];
-        
-            [result1] = await dbCentral.execute(
-                `UPDATE title_basics SET \`${column}\` = ? WHERE Tconst = ?`,
-                [value, id]
-            );
+        const column = keys[0];
+        const value = updates[column];
     
-            [result2] = await dbFragment.execute(
-                `UPDATE title_basics SET \`${column}\` = ? WHERE Tconst = ?`,
-                [value, id]
-            );
+        const [result] = await conn.execute(
+            `UPDATE title_basics SET \`${column}\` = ? WHERE Tconst = ?`,
+            [value, id]
+        );
 
-            await connFragment.commit();
-        } catch (error) {
-            await connFragment.rollback();
-            throw error;
-        } finally {
-            connFragment.release();
-        }    
-
-        await connCentral.commit();
+        await conn.commit();
     
-        return result2;
+        return result;
     } catch (error) {
-        await connCentral.rollback();
+        await conn.rollback();
         throw error;
     } finally {
-        await connCentral.release();
+        await conn.release();
+    }
+}
+
+export async function routeCreateToNode(vmid, data) {
+    // check vmid and see if it should go to node 2 or 3
+    // copy it to node 1 regardless
+
+    const resultCentral = await addRowToNode(1, data);
+
+    if (vmid === 2 || vmid === 3) {
+        const resultFragment = await addRowToNode(vmid, data);
+
+        return { central: resultCentral, node: resultFragment };
+    }
+}
+
+export async function routeUpdateToNode(vmid, id, updates) {
+    // check vmid and see if it should go to node 2 or 3
+    // copy it to node 1 regardless
+
+    const resultCentral = await updateRowByIDInNode(1, id, updates);
+
+    if (vmid === 2 || vmid === 3) {
+        const resultFragment = await updateRowByIDInNode(vmid, id, updates);
+        return { central: resultCentral, node: resultFragment };
     }
 }
