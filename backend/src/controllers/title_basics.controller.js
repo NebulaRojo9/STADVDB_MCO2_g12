@@ -31,10 +31,9 @@ export async function addRow(req, res) {
 
 export async function updateRowByID(req, res) {
     try {
-        const vmid = req.params.vmid;
         const id = req.params.id;
         const updates = req.body;
-        const result = await TitleBasicsService.updateRowByID(vmid, id, updates);
+        const result = await TitleBasicsService.updateRowByID(id, updates);
         res.status(200).json(result);
     } catch (error) {
         console.error('Error in updateRowByID controller: ', error);
