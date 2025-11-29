@@ -47,7 +47,11 @@ async function connectWithRetry(pool, poolNumber) {
 }
 
 export const initDB = async () => {
-    if (pool1 && pool2) return; // Existing pool is returned if exists
+    ['DB_HOST','DB_USER','DB_DATABASE','DB_PASS1','DB_PORT1','DB_PASS2','DB_PORT2','DB_PASS3','DB_PORT3']
+    .forEach(v => {
+        if (!process.env[v]) throw new Error(`Missing environment variable: ${v}`);
+    });
+    if (pool1 && pool2 && pool3) return; // Existing pool is returned if exists
 
     console.log('Initializing database connection pool...');
 
@@ -99,6 +103,7 @@ export const getDB = async (i) => {
         return pool2;
     } else if (i == 3) {
         return pool3;
+        // return pool for third database
     } else {
         throw new Error('Invalid database identifier');
     }
