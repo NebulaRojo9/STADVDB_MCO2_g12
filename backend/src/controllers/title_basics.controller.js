@@ -1,4 +1,4 @@
-import * as TitleBasicsService from './title_basics.services.js';
+import * as TitleBasicsService from '../services/title_basics.services.js';
 
 export async function init(req, res) {
     try {

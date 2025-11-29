@@ -1,4 +1,4 @@
-import { initDB, getDB } from './config/connect.js';
+import { initDB, getDB } from '../config/connect.js';
 
 // GET '/title-basics/init'
 export async function init() {

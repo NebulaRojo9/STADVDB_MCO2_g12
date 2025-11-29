@@ -1,6 +1,6 @@
 import express from 'express';
 import 'dotenv/config';
-import titleBasicsRouter from './title_basics.routes.js';
+import titleBasicsRouter from './routes/title_basics.routes.js';
 
 const app = express();
 
