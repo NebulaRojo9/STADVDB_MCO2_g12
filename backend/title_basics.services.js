@@ -1,0 +1,65 @@
+import { initDB, getDB } from './config/connect.js';
+
+// GET '/title-basics/init'
+export async function init() {
+    // This function can be used to perform any initialization logic if needed
+    await initDB();
+    return;
+}
+
+// GET '/title-basics/:vmid'
+export async function getAll(vmid) {
+    const db = await getDB(vmid);
+    const [title_basics] = await db.query('SELECT * FROM title_basics');
+    
+    return title_basics
+}
+
+// POST '/addRow'
+export async function addRow(data) {
+    const db = await getDB(1);
+
+    const { 
+        tconst,
+        titleType, 
+        primaryTitle, 
+        originalTitle, 
+        isAdult, 
+        startYear, 
+        endYear, 
+        runtimeMinutes, 
+        genres 
+    } = data;
+
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const [rows] = await conn.execute(
+            `INSERT INTO title_basics (tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres]
+        )
+
+        await conn.commit();
+
+        return rows;
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+}
+
+// PUT 
+export async function updateRowByID(vmid, id, updates) {
+    const db = await getDB(vmid);
+
+    const [result] = await db.execute(
+        `UPDATE title_basics SET runtimeMinutes = ? WHERE id = ?`,
+        [value, id]
+    )
+
+    return result
+}
