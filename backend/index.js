@@ -5,6 +5,7 @@ import titleBasicsRouter from './title_basics.routes.js';
 
 const app = express()
 
+app.use(express.json());
 app.use('/title-basics', titleBasicsRouter);
 
 app.get("/", (req,res) => {
