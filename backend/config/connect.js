@@ -6,7 +6,19 @@ let pool1 = null;
 let pool2 = null;
 let pool3 = null;
 const MAX_RETRIES = 5;
-
+[
+  'DB_HOST',
+  'DB_USER',
+  'DB_DATABASE',
+  'DB_PASS1',
+  'DB_PORT1',
+  'DB_PASS2',
+  'DB_PORT2',
+  'DB_PASS3',
+  'DB_PORT3',
+].forEach((v) => {
+  if (!process.env[v]) throw new Error(`Missing environment variable: ${v}`);
+});
 async function connectWithRetry(pool, poolNumber) {
   let connected = false;
   let retries = MAX_RETRIES;
@@ -46,19 +58,6 @@ async function connectWithRetry(pool, poolNumber) {
 }
 
 export const initDB = async () => {
-  [
-    'DB_HOST',
-    'DB_USER',
-    'DB_DATABASE',
-    'DB_PASS1',
-    'DB_PORT1',
-    'DB_PASS2',
-    'DB_PORT2',
-    'DB_PASS3',
-    'DB_PORT3',
-  ].forEach((v) => {
-    if (!process.env[v]) throw new Error(`Missing environment variable: ${v}`);
-  });
   if (pool1 && pool2 && pool3) return; // Existing pool is returned if exists
 
   console.log('Initializing database connection pool...');
