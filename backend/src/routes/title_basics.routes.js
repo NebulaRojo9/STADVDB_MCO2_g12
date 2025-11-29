@@ -6,6 +6,6 @@ const router = Router();
 router.get('/init', titleBasicsController.init);
 router.get('/vm/:vmid', titleBasicsController.getAll);
 router.post('/create', titleBasicsController.addRow);
-router.put('/vm/:vmid/update/:id', titleBasicsController.updateRowByID)
+router.put('/vm/update/:id', titleBasicsController.updateRowByID)
 
 export default router;
