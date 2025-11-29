@@ -1,0 +1,48 @@
+# -------------------------------
+# Test GET /title-basics/init
+# -------------------------------
+GET http://localhost:3000/title-basics/init
+Accept: application/json
+
+###
+
+# -------------------------------
+# Test GET /title-basics/vm/:vmid
+# Example: vmid = 1
+# -------------------------------
+GET http://localhost:3000/title-basics/vm/1
+Accept: application/json
+
+###
+
+# -------------------------------
+# Test POST /title-basics/create
+# -------------------------------
+POST http://localhost:3000/title-basics/create
+Content-Type: application/json
+
+{
+  "tconst": "tt1234567",
+  "titleType": "movie",
+  "primaryTitle": "Test Movie",
+  "originalTitle": "Test Movie Original",
+  "isAdult": 0,
+  "startYear": 2025,
+  "endYear": null,
+  "runtimeMinutes": 120,
+  "genres": "Drama"
+}
+
+###
+
+# -------------------------------
+# Test PUT /title-basics/vm/:vmid/update/:id
+# Example: vmid = 1, id = tt1234567
+# -------------------------------
+PUT http://localhost:3000/title-basics/vm/1/update/tt1234567
+Content-Type: application/json
+
+{
+  "primaryTitle": "Updated Test Movie"
+}
+
