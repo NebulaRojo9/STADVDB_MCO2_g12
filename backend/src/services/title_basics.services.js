@@ -17,8 +17,6 @@ export async function getAll(vmid) {
 
 // POST '/addRow'
 export async function addRow(data) {
-    const db = await getDB(1);
-
     const { 
         tconst,
         titleType, 
@@ -30,25 +28,57 @@ export async function addRow(data) {
         runtimeMinutes, 
         genres 
     } = data;
+    
+    const dbCentral = await getDB(1);
 
-    const conn = await db.getConnection();
+    const connCentral = await dbCentral.getConnection();
     try {
-        await conn.beginTransaction();
+        await connCentral.beginTransaction();
 
-        const [rows] = await conn.execute(
+        const [rows] = await connCentral.execute(
             `INSERT INTO title_basics (tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres]
         )
 
-        await conn.commit();
-
-        return rows;
+        await connCentral.commit();
     } catch (error) {
-        await conn.rollback();
+        await connCentral.rollback();
         throw error;
     } finally {
-        conn.release();
+        connCentral.release();
+    }
+
+    let vmid;
+
+    // Perform fragmentation here
+    if (startYear < 2000) {
+        vmid = 2;
+    } else {
+        vmid = 3;
+    }
+
+    const dbFragment = await getDB(vmid);
+
+    const connFragment = await dbFragment.getConnection();
+
+    try {
+        await connFragment.beginTransaction();
+
+        const [rows] = await connFragment.execute(
+            `INSERT INTO title_basics (tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres]
+        )
+
+        await connFragment.commit();
+
+        return rows
+    } catch (error) {
+        await connFragment.rollback();
+        throw error;
+    } finally {
+        connFragment.release();
     }
 }
 
