@@ -1,94 +1,153 @@
-const EventEmitter = require('events');
+import { EventEmitter } from 'events';
 
-// Eventually when we have time to implement multimaster mode
-class LockManager extends EventEmitter {
+class Queue {
   constructor() {
-    super();
-    // Key: resourceId,
-    // Value: { readers: number, writer: boolean, queue: ['SHARED | 'EXCLUSIVE', resolve: function] }
-    this.locks = new Map();
+    this.items = [];
   }
-
-  /**
-   * Gets or creates locks
-   */
-  _getLock(resourceId) {
-    if (!this.locks.has(resourceId)) {
-      this.locks.set(resourceId, {
-        readers: 0,
-        writer: false,
-        queue: []
-      });
-    }
-    return this.locks.get(resourceId);
+  enqueue(item) {
+    this.items.push(item);
   }
-
-  /**
-   * Recursively process the queue for a resource. Only recurses if the next request is a reader
-   */
-  _processQueue(resourceId) {
-    const lock = this._getLock(resourceId);
-
-    if (lock.queue.length === 0) {
-      if (lock.readers === 0 && !lock.writer) {
-        this.locks.delete(resourceId);
-      }
-      return;
-    }
-
-    const nextRequest = lock.queue[0];
-
-    if (nextRequest.type === 'EXCLUSIVE') {
-      if (lock.readers === 0 && !lock.writer) {
-        lock.queue.shift();
-        lock.writer = true;
-        nextRequest.resolve();
-      }
-    } else if (nextRequest.type === 'SHARED') {
-      // Add reader to lock
-      if (!lock.writer) {
-        lock.queue.shift();
-        lock.readers++;
-        nextRequest.resolve();
-        
-        // Process more readers if queue's head is a reader
-        if (lock.queue.length > 0 && lock.queue[0].type === 'SHARED') {
-          this._processQueue(resourceId);
-        }
-      }
-    }
+  dequeue() {
+    return this.isEmpty() ? null : this.items.shift();
   }
-
-  /**
-   * Acquire a lock
-   */
-  acquire(resourceId, type) {
-    return new Promise((resolve) => {
-      const lock = this._getLock(resourceId);
-      
-      // Add request to queue
-      lock.queue.push({ type, resolve });
-      
-      // Try to execute immediately
-      this._processQueue(resourceId);
-    });
+  peek() {
+    return this.isEmpty() ? null : this.items[0];
   }
-
-  /**
-   * Release a lock
-   */
-  release(resourceId, type) {
-    const lock = this.locks.get(resourceId);
-    if (!lock) return;
-
-    if (type === 'EXCLUSIVE') {
-      lock.writer = false;
-    } else {
-      lock.readers--;
-    }
-
-    this._processQueue(resourceId);
+  isEmpty() {
+    return this.items.length === 0;
+  }
+  size() {
+    return this.items.length;
   }
 }
 
-module.exports = new LockManager();
+class LockManager extends EventEmitter {
+  constructor() {
+    super();
+    this.resource_locks = new Map();
+  }
+
+  // Enable verbose debug output by setting environment variable
+  static get DEBUG() {
+    return !!process.env.LOCK_MANAGER_DEBUG;
+  }
+
+  _getLockState(resourceId) {
+    if (!this.resource_locks.has(resourceId)) {
+      this.resource_locks.set(resourceId, {
+        active_locks: [],
+        pending_locks: new Queue(),
+      });
+    }
+    return this.resource_locks.get(resourceId);
+  }
+
+  _woundLock(resourceId, activeLock) {
+    if (LockManager.DEBUG) console.log(`[LockManager] wound: resource=${resourceId} woundedTx=${activeLock.transactionId}`);
+
+    // Notify listeners that this lock is being aborted
+    this.emit('abort', activeLock.transactionId);
+
+    // Reject promise to avoid hanging
+    if (activeLock.reject) {
+      activeLock.reject(new Error(`Transaction ${activeLock.transactionId} aborted by Wound-Wait`));
+    }
+
+    this.release(resourceId, activeLock.transactionId);
+  }
+
+  _tryGrant(state, lockRequest) {
+    // 1. FAIRNESS CHECK (no jumping the queue)
+    if (!state.pending_locks.isEmpty()) {
+      const head = state.pending_locks.peek();
+      if (head.transactionId !== lockRequest.transactionId) {
+        if (LockManager.DEBUG) console.log(`[LockManager] cannot grant: pending head=${head.transactionId} requester=${lockRequest.transactionId}`);
+        return false;
+      }
+    }
+
+    // 2. CONFLICT CHECK
+    const hasConflict = state.active_locks.some((active) => {
+      if (active.transactionId === lockRequest.transactionId) return false;
+      return lockRequest.type === 'EXCLUSIVE' || active.type === 'EXCLUSIVE';
+    });
+
+    if (!hasConflict) {
+      state.active_locks.push(lockRequest);
+      if (LockManager.DEBUG) console.log(`[LockManager] granted: resource=${lockRequest.resourceId} tx=${lockRequest.transactionId} type=${lockRequest.type}`);
+      if (lockRequest.resolve) lockRequest.resolve(true);
+      return true;
+    }
+    return false;
+  }
+
+  acquire(resourceId, transactionId, type, timestamp) {
+    return new Promise((resolve, reject) => {
+      const lockRequest = { resourceId, transactionId, timestamp, type, resolve, reject };
+      const state = this._getLockState(resourceId);
+
+      // RETRY LOOP
+      while (true) {
+        const conflicts = state.active_locks.filter((active) => {
+          if (active.transactionId === transactionId) return false;
+          return type === 'EXCLUSIVE' || active.type === 'EXCLUSIVE';
+        });
+
+        // NO CONFLICTS
+        if (conflicts.length === 0) {
+          if (this._tryGrant(state, lockRequest)) return;
+          break; // Start waiting (blocked by fairness queue)
+        }
+
+        // CHECK WOUND-WAIT CONDITIONS
+        const incomingIsYounger = conflicts.some((c) => c.timestamp < timestamp);
+        if (incomingIsYounger) {
+          break; // Wait (younger transaction must wait)
+        }
+
+        // ELSE WE ARE OLDER - WOUND CONFLICTS
+        conflicts.forEach((transaction) => {
+          this._woundLock(resourceId, transaction);
+        });
+
+        // LOOP UNTIL LOCK IS GRANTED OR WAITING
+      }
+
+      if (LockManager.DEBUG) console.log(`[LockManager] enqueue: resource=${resourceId} tx=${transactionId} type=${type} ts=${timestamp}`);
+      state.pending_locks.enqueue(lockRequest);
+    });
+  }
+
+  release(resourceId, transactionId) {
+    const state = this.resource_locks.get(resourceId);
+    if (!state) return;
+
+    // Remove from active locks
+    state.active_locks = state.active_locks.filter((l) => l.transactionId !== transactionId);
+
+    // Remove from pending locks (Clean up if user manually released while waiting)
+    state.pending_locks.items = state.pending_locks.items.filter(
+      (l) => l.transactionId !== transactionId,
+    );
+
+    // Sort pending locks by timestamp to maintain order
+    state.pending_locks.items.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Grant locks to pending requests if possible
+    while (!state.pending_locks.isEmpty()) {
+      const nextRequest = state.pending_locks.peek();
+      if (this._tryGrant(state, nextRequest)) {
+        state.pending_locks.dequeue();
+      } else {
+        break;
+      }
+    }
+
+    // Clean up if no locks remain
+    if (state.active_locks.length === 0 && state.pending_locks.isEmpty()) {
+      this.resource_locks.delete(resourceId);
+    }
+  }
+}
+
+export default new LockManager();
