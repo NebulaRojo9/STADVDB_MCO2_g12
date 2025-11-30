@@ -151,6 +151,55 @@ export async function deleteRowByIDInNode(vmid, id) {
     }
 }
 
+export async function resetDatabases() {
+    const dbCentral = await getDB(1);
+    const dbFragment1 = await getDB(2);
+    const dbFragment2 = await getDB(3);
+
+    const dropQuery = `DROP TABLE IF EXISTS title_basics;`;
+    
+    let result;
+
+    const createQuery = `
+        CREATE TABLE title_basics (
+            Tconst VARCHAR(10) PRIMARY KEY,
+            titleType VARCHAR(50), 
+            primaryTitle VARCHAR(255), 
+            originalTitle VARCHAR(255), 
+            isAdult BOOLEAN, 
+            startYear INT, 
+            endYear INT, 
+            runtimeMinutes INT, 
+            genres VARCHAR(255)
+        );`;
+
+    try {
+        result = await dbCentral.query(dropQuery);
+        result = await dbCentral.query(createQuery);
+    } catch (error) {
+        console.log("Central node error message: ", error);s
+        throw new Error('Central Node Database reset failed');
+    }
+
+    try {
+        result = await dbFragment1.query(dropQuery);
+        result = await dbFragment1.query(createQuery);
+    } catch (error) {
+        console.log("Fragment 1 Node error message: ", error);
+        throw new Error('Fragment 1 Node Database reset failed');
+    }
+
+    try {
+        result = await dbFragment2.query(dropQuery);
+        result = await dbFragment2.query(createQuery);
+    } catch (error) {
+        console.log("Fragment 2 Node error message: ", error);
+        throw new Error('Fragment 2 Node Database reset failed');
+    }
+
+    return result;
+}
+
 // POST '/:vmid/routeCreate'
 export async function routeCreateToNode(vmid, data) {
     // check vmid and see if it should go to node 2 or 3
@@ -208,6 +257,38 @@ export async function routeCreateToNode(vmid, data) {
                 await connCentral.rollback();
                 throw error;
             }
+        } else if (vmid === 2) {
+            try {
+                await connFragment1.beginTransaction();
+
+                if (data.startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
+                    resultFragment = await addRowToNode(vmid, data, connFragment1);
+
+                    try {
+                        await connCentral.beginTransaction();
+
+                        resultCentral = await addRowToNode(1, data, connCentral);
+
+                        await connCentral.commit();
+                    } catch (error) {
+                        console.log("Node 1 rolls back!");
+                        await connCentral.rollback();
+                    }
+                } else { // data is not actually going to node 2 pala
+                    try {
+                        await connFragment2.beginTransaction();
+
+                        resultFragment = await addRowToNode(3, data, connFragment2);
+                    } catch (error) {
+                        console.log("Node 3 rolls back!");
+                        await connFragment2.rollback();
+                    }
+                }
+            } catch (error) {
+                
+            }
+        } else if (vmid === 3) {
+
         }
     } catch (mainError) {
         throw mainError;

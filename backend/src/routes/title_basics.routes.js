@@ -11,6 +11,9 @@ router.post('/:vmid/create', titleBasicsController.addRowToNode);
 router.put('/:vmid/update/:id', titleBasicsController.updateRowByIDInNode)
 router.delete('/:vmid/delete/:id', titleBasicsController.deleteRowByIDInNode);
 
+// Helper Functions
+router.delete('/resetDatabases', titleBasicsController.resetDatabases);
+
 // Operations that are connected to the other operations
 router.post('/:vmid/routeCreate', titleBasicsController.routeCreateToNode);
 router.put('/:vmid/routeUpdate/:id', titleBasicsController.routeUpdateToNode);

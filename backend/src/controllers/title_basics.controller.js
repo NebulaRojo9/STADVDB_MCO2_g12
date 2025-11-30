@@ -85,6 +85,20 @@ export async function deleteRowByIDInNode(req, res) {
     }
 }
 
+export async function resetDatabases(req, res) {
+    try {
+        const result = await TitleBasicsService.resetDatabases();
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('Error in deleteRowByIDInNode controller: ', error);
+        
+        res.status(500).json({
+            message: "Transaction failed",
+            error: error.message
+        });
+    }
+}
+
 export async function routeCreateToNode(req, res) {
     // Steps:
     // 1. Check if this should go to node 1 or 2 
@@ -136,3 +150,4 @@ export async function routeUpdateToNode(req, res) {
         });
     }
 }
+
