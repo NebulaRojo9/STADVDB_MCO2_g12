@@ -296,7 +296,7 @@ export async function routeCreateToNode(vmid, data) {
                     } catch (error) {
                         console.log("Node 3 rolls back!");
                         await connFragment2.rollback();
-                        throw error;s
+                        throw error;
                     }
                 }
 
@@ -307,7 +307,55 @@ export async function routeCreateToNode(vmid, data) {
                 throw error;
             }
         } else if (vmid === 3) {
-            
+            try {
+                await connFragment2.beginTransaction();
+
+                if (data.startYear < 2000) { // if data is not going into node 3, go node 2 then node 1
+                    try {
+                        await connFragment1.beginTransaction();
+
+                        resultFragment = await addRowToNode(2, data, connFragment1);
+
+                        try { // node 1 for last
+                            await connCentral.beginTransaction();
+
+                            resultCentral = await addRowToNode(1, data, connCentral);
+
+                            await connCentral.commit();
+                        } catch(error) {
+                            console.log("Node 1 rolls back!");
+                            await connCentral.rollback();
+                            throw error;
+                        }
+
+                        await connFragment1.commit();
+                    } catch (error) {
+                        console.log("Node 2 rolls back!");
+                        await connFragment1.rollback();
+                        throw error;
+                    }
+                } else { // data is going into node 3! so do node 3 -> node 1
+                    resultFragment = await addRowToNode(3, data, connFragment2);
+
+                    try { // node 1 for last
+                        await connCentral.beginTransaction();
+
+                        resultCentral = await addRowToNode(1, data, connCentral);
+
+                        await connCentral.commit();
+                    } catch(error) {
+                        console.log("Node 1 rolls back!");
+                        await connCentral.rollback();
+                        throw error;
+                    }
+                }
+
+                await connFragment2.commit();
+            } catch (error) {
+                console.log("Node 3 rolls back!");
+                await connFragment2.rollback();
+                throw error;
+            }
         }
     } catch (mainError) {
         throw mainError;
