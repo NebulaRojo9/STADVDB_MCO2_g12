@@ -4,11 +4,21 @@ import * as titleBasicsController from '../controllers/title_basics.controller.j
 const router = Router();
 
 router.get('/init', titleBasicsController.init);
+
+// Individual Operations
 router.get('/:vmid/getAll', titleBasicsController.getAllFromNode);
 router.post('/:vmid/create', titleBasicsController.addRowToNode);
 router.put('/:vmid/update/:id', titleBasicsController.updateRowByIDInNode)
+router.delete('/:vmid/delete/:id', titleBasicsController.deleteRowByIDInNode);
 
-router.post('/routeCreate', titleBasicsController.routeCreateToNode)
-router.put('/routeUpdate/:id/:startYear', titleBasicsController.routeUpdateToNode);
+// Helper Functions
+router.delete('/resetDatabases', titleBasicsController.resetDatabases);
+
+// Operations that are connected to the other operations (will probs be placed in the communication file and refactored to work as such)
+router.get('/:vmid/routeRead', titleBasicsController.routeReadFromNode)
+router.get('/:vmid/routeReadRow/:id', titleBasicsController.routeReadRowFromNode)
+router.post('/:vmid/routeCreate', titleBasicsController.routeCreateToNode);
+router.put('/:vmid/routeUpdate/:id/:startYear', titleBasicsController.routeUpdateToNode);
+router.delete('/:vmid/routeDelete/:id/:startYear', titleBasicsController.routeDeleteRowFromNode);
 
 export default router;
