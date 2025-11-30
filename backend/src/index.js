@@ -1,11 +1,14 @@
 import express from 'express';
 import 'dotenv/config';
 import titleBasicsRouter from './routes/title_basics.routes.js';
+import { initDB } from './config/connect.js';
 
 const app = express();
+await initDB()
 
 app.use(express.json());
 app.use('/title-basics', titleBasicsRouter);
+app.use('/internal', internalRouter);
 
 app.get("/", (req,res) => {
     res.send("Server is ready")
