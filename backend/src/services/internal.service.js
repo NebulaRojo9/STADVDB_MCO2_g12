@@ -1,12 +1,22 @@
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import LockManager from '../utils/lock_manager.js';
+import lockManager from '../utils/lock_manager.js';
+import { registry } from './crud_registry.js'
 
 const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 
 const pendingTransactions = new Map();
 const committedHistory = new Set();
 
+/**
+ * 
+ * @param {*} payload 
+ * {
+ *  action: ACTION_IN_REGISTRY
+ *  id: resource to modify
+ *  data: req.body
+ * }
+ */
 export const startTransaction = async (payload) => {
   const transactionId = uuidv4();
   const timestamp = Date.now();
@@ -69,13 +79,18 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
     return { vote: "YES" };
   }
 
+  const handler = registry[payload.action]
+  if (!handler) throw new Error(`Unknown action type: ${payload.action}`);
+
   const resourceId = `tx-${payload.id}`;
 
   try {
-    await LockManager.acquire(resourceId, transactionId, 'EXCLUSIVE', timestamp);
+    await lockManager.acquire(resourceId, transactionId, 'EXCLUSIVE', timestamp);
     console.log("Lock acquired for transaction: ", transactionId);
 
     // TODO: ADD WAL
+    await handler.validate(payload);
+
     pendingTransactions.set(transactionId, {payload, resourceId, timestamp});
     console.log(`[${transactionId}] Vote: YES (Lock Acquired)`);
     return { vote: 'YES' };
@@ -100,12 +115,16 @@ export const handleCommit = async (transactionId) => {
   }
   const { payload, resourceId } = txState;
   try {
-    const stillLocked = LockManager.isLockedBy(resourceId, transactionId);
+    const stillLocked = lockManager.isLockedBy(resourceId, transactionId);
     if (!stillLocked) {
       throw new Error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
     }
+
     // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
     // Middleware for enrichment (appending path as metadata)
+    const handler = registry[payload.action]
+    await handler.execute(payload)
+    
     committedHistory.add(transactionId);
     console.log("Transaction committed: ", transactionId);
     return { status: 'COMMITTED' };
@@ -114,7 +133,7 @@ export const handleCommit = async (transactionId) => {
     throw e; // Coordinator needs to know
   } finally {
     if (txState && txState.resourceId) {
-      await LockManager.release(txState.resourceId, transactionId);
+      await lockManager.release(txState.resourceId, transactionId);
       console.log("Lock released for transaction: ", transactionId);
     }
     pendingTransactions.delete(transactionId);
@@ -127,7 +146,7 @@ export const handleAbort = async (transactionId) => {
   const txState = pendingTransactions.get(transactionId);
   
   if (txState && txState.resourceId) {
-    await LockManager.release(txState.resourceId, transactionId);
+    await lockManager.release(txState.resourceId, transactionId);
     console.log("Lock released for transaction: ", transactionId);
   }
 
