@@ -19,5 +19,6 @@ router.get('/:vmid/routeRead', titleBasicsController.routeReadFromNode)
 router.get('/:vmid/routeReadRow/:id', titleBasicsController.routeReadRowFromNode)
 router.post('/:vmid/routeCreate', titleBasicsController.routeCreateToNode);
 router.put('/:vmid/routeUpdate/:id/:startYear', titleBasicsController.routeUpdateToNode);
+router.delete('/:vmid/routeDelete/:id/:startYear', titleBasicsController.routeDeleteRowFromNode);
 
 export default router;

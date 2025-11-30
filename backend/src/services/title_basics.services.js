@@ -78,7 +78,9 @@ export async function addRowToNode(vmid, data, conn) {
             `INSERT INTO title_basics (tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres]
-        )
+        );
+
+        return rows;
     } catch (error) {
         console.log("Rolling back from addRowToNode");
         // Temporary fix: recover the node after failure
@@ -129,27 +131,23 @@ export async function updateRowByIDInNode(vmid, id, updates, conn) {
     
 }
 
-export async function deleteRowByIDInNode(vmid, id) {
-    const db = await getDB(vmid);
-    const conn = await db.getConnection();
-
+export async function deleteRowByIDInNode(vmid, id, conn) {
     try {
-        await conn.beginTransaction();
+        if (!nodeStatus[vmid]) {
+            throw new Error(`Node ${vmid} is currently offline.`);
+        }
 
         const [result] = await conn.execute(
             `DELETE FROM title_basics WHERE Tconst = ?`,
             [id]
         );
         
-        await conn.commit();
-
         return result;
     } catch (error) {
         console.log("Rolling back from deleteRowByIDInNode");
-        await conn.rollback();
+        simulateNodeRecovery(vmid);
+
         throw error;
-    } finally {
-        await conn.release();
     }
 }
 
@@ -661,6 +659,204 @@ export async function routeUpdateFromFragment2(id, startYear, updates) {
                 await connCentral.beginTransaction();
 
                 resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                await connCentral.commit();
+            } catch(error) {
+                console.log("Node 1 rolls back!");
+                await connCentral.rollback();
+                throw error;
+            }
+        }
+
+        await connFragment2.commit();
+    } catch (error) {
+        console.log("Node 3 rolls back!");
+        await connFragment2.rollback();
+        throw error;
+    } finally {
+        connCentral.release();
+        connFragment1.release();
+        connFragment2.release();
+    }
+
+    return { central: resultCentral, node: resultFragment };
+}
+
+export async function routeDeleteFromCentral(id, startYear) {
+    // Initialize connections HERE rather than in the update row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connCentral.beginTransaction();
+        
+        resultCentral = await deleteRowByIDInNode(1, id, connCentral);
+
+        if (startYear < 2000) {
+            try {
+                await connFragment1.beginTransaction();
+                resultFragment = await deleteRowByIDInNode(2, id, connFragment1)
+
+                // This only gets hit if previous succeeded
+                await connFragment1.commit();
+            } catch (error) {
+                console.log("Node 2 rolls back!");
+                await connFragment1.rollback();
+                throw error; // throws error to connCentral catch block
+            }
+        } else {
+            try {
+                await connFragment2.beginTransaction();
+                resultFragment = await deleteRowByIDInNode(3, id, connFragment2)
+
+                // Only gets hit if previous succeeded
+                await connFragment2.commit();
+            } catch (error) {
+                console.log("Node 3 rolls back!");
+                await connFragment2.rollback();
+                throw error; // throws error to connCentral catch block
+            }
+        }
+
+        await connCentral.commit();
+    } catch (error) {
+        console.log("Node 1 rolls back!");
+        await connCentral.rollback();
+        throw error;
+    } finally {
+        await connCentral.release();
+        await connFragment1.release();
+        await connFragment2.release();
+    }
+
+    return { central: resultCentral, node: resultFragment };
+}
+
+export async function routeDeleteFromFragment1(id, startYear) {
+    // Initialize connections HERE rather than in the update row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connFragment1.beginTransaction();
+
+        if (startYear < 2000) { 
+            resultFragment = await deleteRowByIDInNode(2, id, connFragment1);
+
+            try {
+                await connCentral.beginTransaction();
+
+                resultCentral = await deleteRowByIDInNode(1, id, connCentral);
+
+                await connCentral.commit();
+            } catch (error) {
+                console.log("Node 1 rolls back!");
+                await connCentral.rollback();
+                throw error;
+            }
+        } else { 
+            try { // node 3 first
+                await connFragment2.beginTransaction();
+
+                resultFragment = await deleteRowByIDInNode(3, id, connFragment2);
+
+                try { // node 1 last
+                    await connCentral.beginTransaction();
+
+                    resultCentral = await deleteRowByIDInNode(1, id, connCentral);
+
+                    await connCentral.commit();
+                } catch (error) {
+                    console.log("Node 1 rolls back!");
+                    await connCentral.rollback();
+                    throw error;
+                }
+
+                await connFragment2.commit();
+            } catch (error) {
+                console.log("Node 3 rolls back!");
+                await connFragment2.rollback();
+                throw error;
+            }
+        }
+
+        await connFragment1.commit();
+    } catch (error) {
+        console.log("Node 2 rolls back!");
+        await connFragment1.rollback();
+        throw error;
+    } finally {
+        await connCentral.release();
+        await connFragment1.release();
+        await connFragment2.release();
+    }
+
+    return { central: resultCentral, node: resultFragment };
+}
+
+export async function routeDeleteFromFragment2(id, startYear) {
+    // Initialize connections HERE rather than in the update row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connFragment2.beginTransaction();
+
+        if (startYear < 2000) { 
+            try {
+                await connFragment1.beginTransaction();
+
+                resultFragment = await deleteRowByIDInNode(2, id, connFragment1);
+
+                try { // node 1 for last
+                    await connCentral.beginTransaction();
+
+                    resultCentral = await deleteRowByIDInNode(1, id, connCentral);
+
+                    await connCentral.commit();
+                } catch(error) {
+                    console.log("Node 1 rolls back!");
+                    await connCentral.rollback();
+                    throw error;
+                }
+
+                await connFragment1.commit();
+            } catch (error) {
+                console.log("Node 2 rolls back!");
+                await connFragment1.rollback();
+                throw error;
+            }
+        } else { 
+            resultFragment = await deleteRowByIDInNode(3, id, connFragment2);
+
+            try { // node 1 for last
+                await connCentral.beginTransaction();
+
+                resultCentral = await deleteRowByIDInNode(1, id, connCentral);
 
                 await connCentral.commit();
             } catch(error) {

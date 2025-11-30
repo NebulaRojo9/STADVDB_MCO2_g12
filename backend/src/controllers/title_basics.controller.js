@@ -253,3 +253,41 @@ export async function routeUpdateToNode(req, res) {
     }
 }
 
+export async function routeDeleteRowFromNode(req, res) {
+    try {
+        const vmid = parseInt(req.params.vmid);
+        const id = req.params.id;
+        const startYear = parseInt(req.params.startYear);
+
+        // check if vmid == 1, 2, or 3
+        if (!(vmid == 1 || vmid == 2 || vmid == 3)) {
+            let error = new Error("VMID must be 1, 2, or 3");
+            throw error;
+        }
+
+        let result;
+
+        switch (vmid) {
+            case 1:
+                result = await TitleBasicsService.routeDeleteFromCentral(id, startYear);
+                break;
+            case 2:
+                result = await TitleBasicsService.routeUpdateFromFragment1(id, startYear);
+                break;
+            case 3:
+                result = await TitleBasicsService.routeUpdateFromFragment2(id, startYear);
+                break;
+            default:
+                break;
+        }
+
+        res.status(201).json(result);
+    } catch (error) {
+        console.error('Error in routeDeleteRowFromNode controller: ', error);
+
+        res.status(500).json({ 
+            message: "Transaction failed", 
+            error: error.message 
+        });
+    }
+}
