@@ -275,20 +275,39 @@ export async function routeCreateToNode(vmid, data) {
                         await connCentral.rollback();
                     }
                 } else { // data is not actually going to node 2 pala
-                    try {
+                    try { // node 3 first
                         await connFragment2.beginTransaction();
 
                         resultFragment = await addRowToNode(3, data, connFragment2);
+
+                        try { // node 1 last
+                            await connCentral.beginTransaction();
+
+                            resultCentral = await addRowToNode(1, data, connCentral);
+
+                            await connCentral.commit();
+                        } catch (error) {
+                            console.log("Node 1 rolls back!");
+                            await connCentral.rollback();
+                            throw error;
+                        }
+
+                        await connFragment2.commit();
                     } catch (error) {
                         console.log("Node 3 rolls back!");
                         await connFragment2.rollback();
+                        throw error;s
                     }
                 }
+
+                await connFragment1.commit();
             } catch (error) {
-                
+                console.log("Node 2 rolls back!");
+                await connFragment1.rollback();
+                throw error;
             }
         } else if (vmid === 3) {
-
+            
         }
     } catch (mainError) {
         throw mainError;
