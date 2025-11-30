@@ -151,6 +151,11 @@ export const handleCommit = async (transactionId) => {
     const handler = registry[payload.action]
     await handler.execute(payload)
     
+    // Clean up
+    setTimeout(() => {
+        committedHistory.delete(transactionId);
+    }, 10 * 60 * 1000); // 600,000 ms
+
     committedHistory.add(transactionId);
     console.log("Transaction committed: ", transactionId);
     return { status: 'COMMITTED' };
