@@ -11,5 +11,14 @@ export const registry = {
     execute: async (payload) => {
       await title_crud.updateTitle(payload.id, payload.data)
     }
+  },
+  CREATE_TITLE: {
+    validate: async (payload) => {
+      await title_crud.canBeCreated(payload.data)
+      return true
+    },
+    execute: async (payload) => {
+      await title_crud.createTitle(payload.data)
+    }
   }
 }

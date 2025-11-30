@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as titleBasicsController from '../controllers/title_basics.controller.js';
+import * as titleBasicsCrudController from '../controllers/title_basics_crud.controller.js'
 
 const router = Router();
 
@@ -21,4 +22,6 @@ router.post('/:vmid/routeCreate', titleBasicsController.routeCreateToNode);
 router.put('/:vmid/routeUpdate/:id/:startYear', titleBasicsController.routeUpdateToNode);
 router.delete('/:vmid/routeDelete/:id/:startYear', titleBasicsController.routeDeleteRowFromNode);
 
+router.put('/update/:id', titleBasicsCrudController.updateTitle)
+router.post('/create', titleBasicsCrudController.updateTitle)
 export default router;
