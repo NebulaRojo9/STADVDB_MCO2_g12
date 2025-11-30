@@ -148,6 +148,12 @@ class LockManager extends EventEmitter {
       this.resource_locks.delete(resourceId);
     }
   }
+
+  isLockedBy(resourceId, transactionId) {
+    const state = this.resource_locks.get(resourceId);
+    if (!state) return false;
+    return state.active_locks.some((l) => l.transactionId === transactionId);
+  }
 }
 
 export default new LockManager();

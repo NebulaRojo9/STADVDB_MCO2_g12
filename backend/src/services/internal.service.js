@@ -1,9 +1,11 @@
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import LockManager from '../utils/lock_manager.js';
 
 const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 
 const pendingTransactions = new Map();
+const committedHistory = new Set();
 
 export const startTransaction = async (payload) => {
   const transactionId = uuidv4();
@@ -62,7 +64,10 @@ export const startTransaction = async (payload) => {
 // 1st PHASE (VOTING)
 export const handlePrepare = async (transactionId, timestamp, payload) => {
   console.log("Prepare request for: ", transactionId);
-  pendingTransactions.set(transactionId, payload);
+
+  if (committedHistory.has(transactionId)) {
+    return { vote: "YES" };
+  }
 
   const resourceId = `tx-${payload.id}`;
 
@@ -73,7 +78,7 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
     // TODO: ADD WAL
     pendingTransactions.set(transactionId, {payload, resourceId, timestamp});
     console.log(`[${transactionId}] Vote: YES (Lock Acquired)`);
-    return true;
+    return { vote: 'YES' };
   } catch (error) {
     console.error(`[${transactionId}] Vote: NO (Lock Acquisition Failed)`, error.message);
     throw new Error(`CANNOT ACQUIRE LOCK: ${error.message}` );
@@ -85,17 +90,28 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
 export const handleCommit = async (transactionId) => {
   console.log("Commit request for: ", transactionId);
 
+  if (committedHistory.has(transactionId)) {
+    return { status: 'COMMITTED_ALREADY' };
+  }
+
   const txState = pendingTransactions.get(transactionId);
   if (!txState) {
     throw new Error(`No pending transaction found for ID: ${transactionId}`);
   }
-
+  const { payload, resourceId } = txState;
   try {
+    const stillLocked = LockManager.isLockedBy(resourceId, transactionId);
+    if (!stillLocked) {
+      throw new Error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
+    }
     // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
     // Middleware for enrichment (appending path as metadata)
-    const payload = txState.payload;
+    committedHistory.add(transactionId);
     console.log("Transaction committed: ", transactionId);
     return { status: 'COMMITTED' };
+  } catch (e) {
+    console.error(`[${transactionId}] Commit Failed`, e.message);
+    throw e; // Coordinator needs to know
   } finally {
     if (txState && txState.resourceId) {
       await LockManager.release(txState.resourceId, transactionId);
