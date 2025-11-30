@@ -85,22 +85,22 @@ export async function addRowToNode(vmid, data, conn) {
 }
 
 // PUT '/:vmid/update/:id'
-export async function updateRowByIDInNode(vmid, id, updates) {
-    const db = await getDB(vmid);
-    const conn = await db.getConnection();
+export async function updateRowByIDInNode(vmid, id, updates, conn) {
+    const allowedColumns = [
+        'titleType',
+        'primaryTitle',
+        'originalTitle',
+        'isAdult',
+        'runtimeMinutes',
+        'genres'
+    ];
+
+    randomizeNodeFailure(vmid);
 
     try {
-        await conn.beginTransaction();
-
-        const allowedColumns = [
-            'titleType',
-            'primaryTitle',
-            'originalTitle',
-            'isAdult',
-            'runtimeMinutes',
-            'genres'
-        ];
-        
+        if (!nodeStatus[vmid]) {
+            throw new Error(`Node ${vmid} is currently offline.`);
+        }
         const keys = Object.keys(updates);
     
         if (keys.length !== 1 || !allowedColumns.includes(keys[0])) {
@@ -114,17 +114,15 @@ export async function updateRowByIDInNode(vmid, id, updates) {
             `UPDATE title_basics SET \`${column}\` = ? WHERE Tconst = ?`,
             [value, id]
         );
-
-        await conn.commit();
     
         return result;
     } catch (error) {
-        console.log("Rolling back form updateRowByIdInNode");
-        await conn.rollback();
+        console.log("Rolling back from updateRowByIDInNode");
+        simulateNodeRecovery(vmid);
+
         throw error;
-    } finally {
-        await conn.release();
     }
+    
 }
 
 export async function deleteRowByIDInNode(vmid, id) {
@@ -365,49 +363,6 @@ export async function routeCreateToNode(vmid, data) {
         connFragment2.release();
     }
 
-    /* try {
-        if (vmid === 1) { // Node 1 creates
-            connCentral.beginTransaction();
-            resultCentral = await addRowToNode(vmid, data, connCentral);
-            
-            if (data.startYear < 2000) {
-                connFragment1.beginTransaction();
-                console.log("Adding to node 2!");
-                resultFragment = await addRowToNode(2, data, connFragment1);
-                connFragment1.commit();
-            }
-            else {
-                console.log("Adding to node 3!");
-                resultFragment = await addRowToNode(3, data, connFragment2);
-            }
-        } else if (vmid === 2) {
-            if (data.startYear >= 2000) { // invalid
-                console.log("Cannot add to node 2, will add to node 3 instead!");
-                resultFragment = await addRowToNode(3, data, connFragment2);
-            } else {
-                resultFragment = await addRowToNode(2, data, connFragment1);
-            }
-    
-            console.log("Adding to central node next!");
-            resultCentral = await addRowToNode(1, data, connCentral);
-        } else if (vmid === 3) {
-            if (data.startYear < 2000) { // invalid
-                console.log("Cannot add to node 3, will add to node 2 instead!");
-                resultFragment = await addRowToNode(2, data, connFragment1);
-            } else {
-                console.log("Adding to node 3!");
-                resultFragment = await addRowToNode(3, data, connFragment2);
-            }
-    
-            console.log("Adding to central node next!");
-            resultCentral = await addRowToNode(1, data, connCentral);
-        }
-    } catch (error) {
-        console.log("Rolling back from rooute create to node");
-        throw error;
-    } */
-
-
     return { central: resultCentral, node: resultFragment };
 }
 
@@ -415,11 +370,166 @@ export async function routeCreateToNode(vmid, data) {
 export async function routeUpdateToNode(vmid, id, updates) {
     // check vmid and see if it should go to node 2 or 3
     // copy it to node 1 regardless
+    console.log(`Routing this update request: ${vmid}`);
 
-    const resultCentral = await updateRowByIDInNode(1, id, updates);
+    // Initialize connections HERE rather than in the add row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
 
-    if (vmid === 2 || vmid === 3) {
-        const resultFragment = await updateRowByIDInNode(vmid, id, updates);
-        return { central: resultCentral, node: resultFragment };
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        if (vmid === 1) {
+            try {
+                await connCentral.beginTransaction();
+                
+                resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+    
+                if (data.startYear < 2000) {
+                    try {
+                        await connFragment1.beginTransaction();
+                        resultFragment = await updateRowByIDInNode(2, id, updates, connCentral)
+    
+                        // This only gets hit if previous succeeded
+                        await connFragment1.commit();
+                    } catch (error) {
+                        console.log("Node 2 rolls back!");
+                        await connFragment1.rollback();
+                        throw error; // throws error to connCentral catch block
+                    }
+                } else {
+                    try {
+                        await connFragment2.beginTransaction();
+                        resultFragment = await updateRowByIDInNode(3, id, updates, connCentral)
+    
+                        // Only gets hit if previous succeeded
+                        await connFragment2.commit();
+                    } catch (error) {
+                        console.log("Node 3 rolls back!");
+                        await connFragment2.rollback();
+                        throw error; // throws error to connCentral catch block
+                    }
+                }
+    
+                await connCentral.commit();
+            } catch (error) {
+                console.log("Node 1 rolls back!");
+                await connCentral.rollback();
+                throw error;
+            }
+        } else if (vmid === 2) {
+            try {
+                await connFragment1.beginTransaction();
+
+                if (data.startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
+                    resultFragment = await updateRowByIDInNode(2, id, updates, connCentral);
+
+                    try {
+                        await connCentral.beginTransaction();
+
+                        resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                        await connCentral.commit();
+                    } catch (error) {
+                        console.log("Node 1 rolls back!");
+                        await connCentral.rollback();
+                    }
+                } else { // data is not actually going to node 2 pala
+                    try { // node 3 first
+                        await connFragment2.beginTransaction();
+
+                        resultFragment = await updateRowByIDInNode(3, id, updates, connCentral);
+
+                        try { // node 1 last
+                            await connCentral.beginTransaction();
+
+                            resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                            await connCentral.commit();
+                        } catch (error) {
+                            console.log("Node 1 rolls back!");
+                            await connCentral.rollback();
+                            throw error;
+                        }
+
+                        await connFragment2.commit();
+                    } catch (error) {
+                        console.log("Node 3 rolls back!");
+                        await connFragment2.rollback();
+                        throw error;
+                    }
+                }
+
+                await connFragment1.commit();
+            } catch (error) {
+                console.log("Node 2 rolls back!");
+                await connFragment1.rollback();
+                throw error;
+            }
+        } else if (vmid === 3) {
+            try {
+                await connFragment2.beginTransaction();
+
+                if (data.startYear < 2000) { // if data is not going into node 3, go node 2 then node 1
+                    try {
+                        await connFragment1.beginTransaction();
+
+                        resultFragment = await updateRowByIDInNode(2, id, updates, connCentral);
+
+                        try { // node 1 for last
+                            await connCentral.beginTransaction();
+
+                            resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                            await connCentral.commit();
+                        } catch(error) {
+                            console.log("Node 1 rolls back!");
+                            await connCentral.rollback();
+                            throw error;
+                        }
+
+                        await connFragment1.commit();
+                    } catch (error) {
+                        console.log("Node 2 rolls back!");
+                        await connFragment1.rollback();
+                        throw error;
+                    }
+                } else { // data is going into node 3! so do node 3 -> node 1
+                    resultFragment = await updateRowByIDInNode(3, id, updates, connCentral);
+
+                    try { // node 1 for last
+                        await connCentral.beginTransaction();
+
+                        resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                        await connCentral.commit();
+                    } catch(error) {
+                        console.log("Node 1 rolls back!");
+                        await connCentral.rollback();
+                        throw error;
+                    }
+                }
+
+                await connFragment2.commit();
+            } catch (error) {
+                console.log("Node 3 rolls back!");
+                await connFragment2.rollback();
+                throw error;
+            }
+        }
+    } catch (mainError) {
+        throw mainError;
+    } finally {
+        connCentral.release();
+        connFragment1.release();
+        connFragment2.release();
     }
+
+    return { central: resultCentral, node: resultFragment };
 }
