@@ -143,7 +143,7 @@ export async function routeUpdateToNode(req, res) {
         const updates = req.body;
         const vmid = parseInt(req.params.vmid);
         const id = req.params.id;
-        const startYear = req.params.startYear
+        const startYear = parseInt(req.params.startYear)
 
         // check if vmid == 1, 2, or 3
         if (!(vmid == 1 || vmid == 2 || vmid == 3)) {

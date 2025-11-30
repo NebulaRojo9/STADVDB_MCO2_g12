@@ -442,7 +442,7 @@ export async function routeCreateToNode(vmid, data) {
                 await connFragment1.beginTransaction();
 
                 if (data.startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
-                    resultFragment = await addRowToNode(vmid, data, connFragment1);
+                    resultFragment = await addRowToNode(2, data, connFragment1);
 
                     try {
                         await connCentral.beginTransaction();
@@ -570,7 +570,7 @@ export async function routeUpdateFromCentral(id, startYear, updates) {
         if (startYear < 2000) {
             try {
                 await connFragment1.beginTransaction();
-                resultFragment = await updateRowByIDInNode(2, id, updates, connCentral)
+                resultFragment = await updateRowByIDInNode(2, id, updates, connFragment1)
 
                 // This only gets hit if previous succeeded
                 await connFragment1.commit();
@@ -582,7 +582,7 @@ export async function routeUpdateFromCentral(id, startYear, updates) {
         } else {
             try {
                 await connFragment2.beginTransaction();
-                resultFragment = await updateRowByIDInNode(3, id, updates, connCentral)
+                resultFragment = await updateRowByIDInNode(3, id, updates, connFragment2)
 
                 // Only gets hit if previous succeeded
                 await connFragment2.commit();
@@ -624,7 +624,7 @@ export async function routeUpdateFromFragment1(id, startYear, updates) {
         await connFragment1.beginTransaction();
 
         if (startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
-            resultFragment = await updateRowByIDInNode(2, id, updates, connCentral);
+            resultFragment = await updateRowByIDInNode(2, id, updates, connFragment1);
 
             try {
                 await connCentral.beginTransaction();
@@ -641,7 +641,7 @@ export async function routeUpdateFromFragment1(id, startYear, updates) {
             try { // node 3 first
                 await connFragment2.beginTransaction();
 
-                resultFragment = await updateRowByIDInNode(3, id, updates, connCentral);
+                resultFragment = await updateRowByIDInNode(3, id, updates, connFragment2);
 
                 try { // node 1 last
                     await connCentral.beginTransaction();
@@ -697,7 +697,7 @@ export async function routeUpdateFromFragment2(id, startYear, updates) {
             try {
                 await connFragment1.beginTransaction();
 
-                resultFragment = await updateRowByIDInNode(2, id, updates, connCentral);
+                resultFragment = await updateRowByIDInNode(2, id, updates, connFragment1);
 
                 try { // node 1 for last
                     await connCentral.beginTransaction();
@@ -718,7 +718,7 @@ export async function routeUpdateFromFragment2(id, startYear, updates) {
                 throw error;
             }
         } else { // data is going into node 3! so do node 3 -> node 1
-            resultFragment = await updateRowByIDInNode(3, id, updates, connCentral);
+            resultFragment = await updateRowByIDInNode(3, id, updates, connFragment2);
 
             try { // node 1 for last
                 await connCentral.beginTransaction();
@@ -775,7 +775,7 @@ export async function routeUpdateFromFragment2(id, startYear, updates) {
                 if (updates.startYear < 2000) {
                     try {
                         await connFragment1.beginTransaction();
-                        resultFragment = await updateRowByIDInNode(2, id, updates, connCentral)
+                        resultFragment = await updateRowByIDInNode(2, id, updates, connFragment1)
     
                         // This only gets hit if previous succeeded
                         await connFragment1.commit();
@@ -787,7 +787,7 @@ export async function routeUpdateFromFragment2(id, startYear, updates) {
                 } else {
                     try {
                         await connFragment2.beginTransaction();
-                        resultFragment = await updateRowByIDInNode(3, id, updates, connCentral)
+                        resultFragment = await updateRowByIDInNode(3, id, updates, connFragment2)
     
                         // Only gets hit if previous succeeded
                         await connFragment2.commit();
@@ -809,7 +809,7 @@ export async function routeUpdateFromFragment2(id, startYear, updates) {
                 await connFragment1.beginTransaction();
 
                 if (updates.startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
-                    resultFragment = await updateRowByIDInNode(2, id, updates, connCentral);
+                    resultFragment = await updateRowByIDInNode(2, id, updates, connFragment1);
 
                     try {
                         await connCentral.beginTransaction();
@@ -826,7 +826,7 @@ export async function routeUpdateFromFragment2(id, startYear, updates) {
                     try { // node 3 first
                         await connFragment2.beginTransaction();
 
-                        resultFragment = await updateRowByIDInNode(3, id, updates, connCentral);
+                        resultFragment = await updateRowByIDInNode(3, id, updates, connFragment2);
 
                         try { // node 1 last
                             await connCentral.beginTransaction();
@@ -883,7 +883,7 @@ export async function routeUpdateFromFragment2(id, startYear, updates) {
                         throw error;
                     }
                 } else { // data is going into node 3! so do node 3 -> node 1
-                    resultFragment = await updateRowByIDInNode(3, id, updates, connCentral);
+                    resultFragment = await updateRowByIDInNode(3, id, updates, connFragment2);
 
                     try { // node 1 for last
                         await connCentral.beginTransaction();
