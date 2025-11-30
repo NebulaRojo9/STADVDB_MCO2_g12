@@ -113,7 +113,11 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
   try {
     await lockManager.acquire(resourceId, transactionId, 'EXCLUSIVE', timestamp);
     console.log("Lock acquired for transaction: ", transactionId);
-
+  } catch (error) {
+    console.error(`[${transactionId}] Vote: NO (Lock Acquisition Failed)`, error.message);
+    throw new Error(`CANNOT ACQUIRE LOCK: ${error.message}` );
+  }
+  try {
     // TODO: ADD WAL
     await handler.validate(payload);
 
@@ -121,8 +125,9 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
     console.log(`[${transactionId}] Vote: YES (Lock Acquired)`);
     return { vote: 'YES' };
   } catch (error) {
-    console.error(`[${transactionId}] Vote: NO (Lock Acquisition Failed)`, error.message);
-    throw new Error(`CANNOT ACQUIRE LOCK: ${error.message}` );
+    lockManager.release(resourceId, transactionId)
+    console.error(`[${transactionId}] Vote: NO (Validation Failed)`, error.message);
+    throw new Error(`VALIDATION FAILED: ${error.message}`);
   }
 }
 
