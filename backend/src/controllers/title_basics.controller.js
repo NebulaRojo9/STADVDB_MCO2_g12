@@ -99,6 +99,81 @@ export async function resetDatabases(req, res) {
     }
 }
 
+export async function routeReadFromNode(req, res) {
+    try {
+        const vmid = parseInt(req.params.vmid);
+
+        // check if vmid == 1, 2, or 3
+        if (!(vmid == 1 || vmid == 2 || vmid == 3)) {
+            let error = new Error("VMID must be 1, 2, or 3");
+            throw error;
+        }
+
+        let result;
+
+        switch (vmid) {
+            case 1:
+                result = await TitleBasicsService.readFromCentral();
+                break;
+            case 2:
+                result = await TitleBasicsService.readFromFragment1();
+                break;
+            case 3:
+                result = await TitleBasicsService.readFromFragment2();
+                break;
+            default:
+                break;
+        }
+
+        res.status(201).json(result);
+    } catch (error) {
+        console.error('Error in routeReadFromNode controller: ', error);
+
+        res.status(500).json({ 
+            message: "Transaction failed", 
+            error: error.message 
+        });
+    }
+}
+
+export async function routeReadRowFromNode(req, res) {
+    try {
+        const vmid = parseInt(req.params.vmid);
+        const id = req.params.id
+
+        // check if vmid == 1, 2, or 3
+        if (!(vmid == 1 || vmid == 2 || vmid == 3)) {
+            let error = new Error("VMID must be 1, 2, or 3");
+            throw error;
+        }
+
+        let result;
+
+        switch (vmid) {
+            case 1:
+                result = await TitleBasicsService.readRowFromCentral(id);
+                break;
+            case 2:
+                result = await TitleBasicsService.readRowFromFragment1(id);
+                break;
+            case 3:
+                result = await TitleBasicsService.readRowFromFragment2(id);
+                break;
+            default:
+                break;
+        }
+
+        res.status(201).json(result);
+    } catch (error) {
+        console.error('Error in routeReadFromNode controller: ', error);
+
+        res.status(500).json({ 
+            message: "Transaction failed", 
+            error: error.message 
+        });
+    }
+}
+
 export async function routeCreateToNode(req, res) {
     try {
         const data = req.body;

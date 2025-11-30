@@ -47,6 +47,10 @@ export async function getAllFromNode(vmid) {
     }
 }
 
+export async function getRowFromNode(vmid) {
+
+}
+
 // POST '/:vmid/create'
 // Connections being accepted here have already begun transaction
 export async function addRowToNode(vmid, data, conn) {
@@ -193,6 +197,108 @@ export async function resetDatabases() {
     }
 
     return result;
+}
+
+export async function readFromCentral() {
+    // Initialize connections HERE rather than in the read function
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    try {
+        const [title_basics] = await connCentral.execute('SELECT * FROM title_basics');
+        
+        return title_basics
+    } catch (error) {
+        connCentral.rollback();
+        throw error
+    } finally {
+        connCentral.release();
+    }
+}
+
+export async function readFromFragment1() {
+    // Initialize connections HERE rather than in the read function
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    try {
+        const [title_basics] = await connFragment1.execute('SELECT * FROM title_basics');
+        
+        return title_basics
+    } catch (error) {
+        connFragment1.rollback();
+        throw error
+    } finally {
+        connFragment1.release();
+    }
+}
+
+export async function readFromFragment2() {
+    // Initialize connections HERE rather than in the read function
+    const dbFragment2 = await getDB(1);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    try {
+        const [title_basics] = await connFragment2.execute('SELECT * FROM title_basics');
+        
+        return title_basics
+    } catch (error) {
+        connFragment2.rollback();
+        throw error
+    } finally {
+        connFragment2.release();
+    }
+}
+
+export async function readRowFromCentral(id) {
+    // Initialize connections HERE rather than in the read function
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    try {
+        const [title_basics] = await connCentral.execute(`SELECT * FROM title_basics WHERE tconst = "${id}"`);
+        
+        return title_basics
+    } catch (error) {
+        connCentral.rollback();
+        throw error
+    } finally {
+        connCentral.release();
+    }
+}
+
+export async function readRowFromFragment1(id) {
+    // Initialize connections HERE rather than in the read function
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    try {
+        const [title_basics] = await connFragment1.execute(`SELECT * FROM title_basics WHERE tconst = "${id}"`);
+        
+        return title_basics
+    } catch (error) {
+        connFragment1.rollback();
+        throw error
+    } finally {
+        connFragment1.release();
+    }
+}
+
+export async function readRowFromFragment2(id) {
+    // Initialize connections HERE rather than in the read function
+    const dbFragment2 = await getDB(1);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    try {
+        const [title_basics] = await connFragment2.execute(`SELECT * FROM title_basics WHERE tconst = "${id}"`);
+        
+        return title_basics
+    } catch (error) {
+        connFragment2.rollback();
+        throw error
+    } finally {
+        connFragment2.release();
+    }
 }
 
 export async function routeCreateFromCentral(data) {
@@ -381,7 +487,7 @@ export async function routeCreateFromFragment2(data) {
 }
 
 export async function routeUpdateFromCentral(id, startYear, updates) {
-    // Initialize connections HERE rather than in the add row functions
+    // Initialize connections HERE rather than in the update row functions
     const dbCentral = await getDB(1);
     const connCentral = await dbCentral.getConnection();
 
@@ -439,7 +545,7 @@ export async function routeUpdateFromCentral(id, startYear, updates) {
 }
 
 export async function routeUpdateFromFragment1(id, startYear, updates) { 
-    // Initialize connections HERE rather than in the add row functions
+    // Initialize connections HERE rather than in the update row functions
     const dbCentral = await getDB(1);
     const connCentral = await dbCentral.getConnection();
 
@@ -509,7 +615,7 @@ export async function routeUpdateFromFragment1(id, startYear, updates) {
 }
 
 export async function routeUpdateFromFragment2(id, startYear, updates) {
-    // Initialize connections HERE rather than in the add row functions
+    // Initialize connections HERE rather than in the update row functions
     const dbCentral = await getDB(1);
     const connCentral = await dbCentral.getConnection();
 
