@@ -100,8 +100,6 @@ export async function resetDatabases(req, res) {
 }
 
 export async function routeCreateToNode(req, res) {
-    // Steps:
-    // 1. Check if this should go to node 1 or 2 
     try {
         const data = req.body;
         const vmid = parseInt(req.params.vmid);
@@ -112,7 +110,21 @@ export async function routeCreateToNode(req, res) {
             throw error;
         }
 
-        const result = await TitleBasicsService.routeCreateToNode(vmid, data);
+        let result;
+
+        switch (vmid) {
+            case 1:
+                result = await TitleBasicsService.routeCreateFromCentral(data);
+                break;
+            case 2:
+                result = await TitleBasicsService.routeCreateFromFragment1(data);
+                break;
+            case 3:
+                result = await TitleBasicsService.routeCreateFromFragment2(data);
+                break;
+            default:
+                break;
+        }
 
         res.status(201).json(result);
     } catch (error) {
@@ -131,6 +143,7 @@ export async function routeUpdateToNode(req, res) {
         const updates = req.body;
         const vmid = parseInt(req.params.vmid);
         const id = req.params.id;
+        const startYear = req.params.startYear
 
         // check if vmid == 1, 2, or 3
         if (!(vmid == 1 || vmid == 2 || vmid == 3)) {
@@ -138,7 +151,21 @@ export async function routeUpdateToNode(req, res) {
             throw error;
         }
 
-        const result = await TitleBasicsService.routeUpdateToNode(vmid, id, updates);
+        let result;
+
+        switch (vmid) {
+            case 1:
+                result = await TitleBasicsService.routeUpdateFromCentral(id, startYear, updates);
+                break;
+            case 2:
+                result = await TitleBasicsService.routeUpdateFromFragment1(id, startYear, updates);
+                break;
+            case 3:
+                result = await TitleBasicsService.routeUpdateFromFragment2(id, startYear, updates);
+                break;
+            default:
+                break;
+        }
 
         res.status(201).json(result);
     } catch (error) {

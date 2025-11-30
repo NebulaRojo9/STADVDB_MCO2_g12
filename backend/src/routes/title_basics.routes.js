@@ -14,8 +14,8 @@ router.delete('/:vmid/delete/:id', titleBasicsController.deleteRowByIDInNode);
 // Helper Functions
 router.delete('/resetDatabases', titleBasicsController.resetDatabases);
 
-// Operations that are connected to the other operations
+// Operations that are connected to the other operations (will probs be placed in the communication file and refactored to work as such)
 router.post('/:vmid/routeCreate', titleBasicsController.routeCreateToNode);
-router.put('/:vmid/routeUpdate/:id', titleBasicsController.routeUpdateToNode);
+router.put('/:vmid/routeUpdate/:id/:startYear', titleBasicsController.routeUpdateToNode);
 
 export default router;

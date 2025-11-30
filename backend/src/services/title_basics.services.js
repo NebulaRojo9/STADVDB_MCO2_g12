@@ -175,30 +175,212 @@ export async function resetDatabases() {
         result = await dbCentral.query(dropQuery);
         result = await dbCentral.query(createQuery);
     } catch (error) {
-        console.log("Central node error message: ", error);s
-        throw new Error('Central Node Database reset failed');
+        throw error;
     }
 
     try {
         result = await dbFragment1.query(dropQuery);
         result = await dbFragment1.query(createQuery);
     } catch (error) {
-        console.log("Fragment 1 Node error message: ", error);
-        throw new Error('Fragment 1 Node Database reset failed');
+        throw error;
     }
 
     try {
         result = await dbFragment2.query(dropQuery);
         result = await dbFragment2.query(createQuery);
     } catch (error) {
-        console.log("Fragment 2 Node error message: ", error);
-        throw new Error('Fragment 2 Node Database reset failed');
+        throw error;
     }
 
     return result;
 }
 
-// POST '/:vmid/routeCreate'
+export async function routeCreateFromCentral(data) {
+    // Initialize connections HERE rather than in the add row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connCentral.beginTransaction();
+        
+        resultCentral = await addRowToNode(1, data, connCentral);
+
+        if (data.startYear < 2000) {
+            try {
+                await connFragment1.beginTransaction();
+                resultFragment = await addRowToNode(2, data, connFragment1)
+
+                // This only gets hit if previous succeeded
+                await connFragment1.commit();
+            } catch (error) {
+                console.log("Node 2 rolls back!");
+                await connFragment1.rollback();
+                throw error; // throws error to connCentral catch block
+            }
+        } else {
+            try {
+                await connFragment2.beginTransaction();
+                resultFragment = await addRowToNode(3, data, connFragment2)
+
+                // Only gets hit if previous succeeded
+                await connFragment2.commit();
+            } catch (error) {
+                console.log("Node 3 rolls back!");
+                await connFragment2.rollback();
+                throw error; // throws error to connCentral catch block
+            }
+        }
+
+        await connCentral.commit();
+    } catch (mainError) {
+        console.log("Node 1 rolls back!");
+        await connCentral.rollback();
+        throw mainError;
+    }
+
+    return { central: resultCentral, node: resultFragment };
+}
+
+export async function routeCreateFromFragment1(data) {
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connFragment1.beginTransaction();
+
+        if (data.startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
+            resultFragment = await addRowToNode(2, data, connFragment1);
+
+            try {
+                await connCentral.beginTransaction();
+
+                resultCentral = await addRowToNode(1, data, connCentral);
+
+                await connCentral.commit();
+            } catch (error) {
+                console.log("Node 1 rolls back!");
+                await connCentral.rollback();
+                throw error;
+            }
+        } else { // data is not actually going to node 2 pala
+            try { // node 3 first
+                await connFragment2.beginTransaction();
+
+                resultFragment = await addRowToNode(3, data, connFragment2);
+
+                try { // node 1 last
+                    await connCentral.beginTransaction();
+
+                    resultCentral = await addRowToNode(1, data, connCentral);
+
+                    await connCentral.commit();
+                } catch (error) {
+                    console.log("Node 1 rolls back!");
+                    await connCentral.rollback();
+                    throw error;
+                }
+
+                await connFragment2.commit();
+            } catch (error) {
+                console.log("Node 3 rolls back!");
+                await connFragment2.rollback();
+                throw error;
+            }
+        }
+
+        await connFragment1.commit();
+    } catch (mainError) {
+        console.log("Node 2 rolls back!");
+        await connFragment1.rollback();
+        throw mainError;
+    }
+
+    return { central: resultCentral, node: resultFragment };
+}
+
+export async function routeCreateFromFragment2(data) {
+    // Initialize connections HERE rather than in the add row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connFragment2.beginTransaction();
+
+        if (data.startYear < 2000) { // if data is not going into node 3, go node 2 then node 1
+            try {
+                await connFragment1.beginTransaction();
+
+                resultFragment = await addRowToNode(2, data, connFragment1);
+
+                try { // node 1 for last
+                    await connCentral.beginTransaction();
+
+                    resultCentral = await addRowToNode(1, data, connCentral);
+
+                    await connCentral.commit();
+                } catch(error) {
+                    console.log("Node 1 rolls back!");
+                    await connCentral.rollback();
+                    throw error;
+                }
+
+                await connFragment1.commit();
+            } catch (error) {
+                console.log("Node 2 rolls back!");
+                await connFragment1.rollback();
+                throw error;
+            }
+        } else { // data is going into node 3! so do node 3 -> node 1
+            resultFragment = await addRowToNode(3, data, connFragment2);
+
+            try { // node 1 for last
+                await connCentral.beginTransaction();
+
+                resultCentral = await addRowToNode(1, data, connCentral);
+
+                await connCentral.commit();
+            } catch(error) {
+                console.log("Node 1 rolls back!");
+                await connCentral.rollback();
+                throw error;
+            }
+        }
+
+        await connFragment2.commit();
+    } catch (mainError) {
+        console.log("Node 3 rolls back!");
+        await connFragment2.rollback();
+        throw mainError;
+    }
+
+    return { central: resultCentral, node: resultFragment };
+}
+
+/* // POST '/:vmid/routeCreate'
 export async function routeCreateToNode(vmid, data) {
     // check vmid and see if it should go to node 2 or 3
     // copy it to node 1 regardless
@@ -271,6 +453,7 @@ export async function routeCreateToNode(vmid, data) {
                     } catch (error) {
                         console.log("Node 1 rolls back!");
                         await connCentral.rollback();
+                        throw error;
                     }
                 } else { // data is not actually going to node 2 pala
                     try { // node 3 first
@@ -364,10 +547,208 @@ export async function routeCreateToNode(vmid, data) {
     }
 
     return { central: resultCentral, node: resultFragment };
+} */
+
+export async function routeUpdateFromCentral(id, startYear, updates) {
+    // Initialize connections HERE rather than in the add row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connCentral.beginTransaction();
+        
+        resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+        if (startYear < 2000) {
+            try {
+                await connFragment1.beginTransaction();
+                resultFragment = await updateRowByIDInNode(2, id, updates, connCentral)
+
+                // This only gets hit if previous succeeded
+                await connFragment1.commit();
+            } catch (error) {
+                console.log("Node 2 rolls back!");
+                await connFragment1.rollback();
+                throw error; // throws error to connCentral catch block
+            }
+        } else {
+            try {
+                await connFragment2.beginTransaction();
+                resultFragment = await updateRowByIDInNode(3, id, updates, connCentral)
+
+                // Only gets hit if previous succeeded
+                await connFragment2.commit();
+            } catch (error) {
+                console.log("Node 3 rolls back!");
+                await connFragment2.rollback();
+                throw error; // throws error to connCentral catch block
+            }
+        }
+
+        await connCentral.commit();
+    } catch (error) {
+        console.log("Node 1 rolls back!");
+        await connCentral.rollback();
+        throw error;
+    } finally {
+        await connCentral.release();
+        await connFragment1.release();
+        await connFragment2.release();
+    }
+
+    return { central: resultCentral, node: resultFragment };
+}
+
+export async function routeUpdateFromFragment1(id, startYear, updates) { 
+    // Initialize connections HERE rather than in the add row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connFragment1.beginTransaction();
+
+        if (startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
+            resultFragment = await updateRowByIDInNode(2, id, updates, connCentral);
+
+            try {
+                await connCentral.beginTransaction();
+
+                resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                await connCentral.commit();
+            } catch (error) {
+                console.log("Node 1 rolls back!");
+                await connCentral.rollback();
+                throw error;
+            }
+        } else { // data is not actually going to node 2 pala
+            try { // node 3 first
+                await connFragment2.beginTransaction();
+
+                resultFragment = await updateRowByIDInNode(3, id, updates, connCentral);
+
+                try { // node 1 last
+                    await connCentral.beginTransaction();
+
+                    resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                    await connCentral.commit();
+                } catch (error) {
+                    console.log("Node 1 rolls back!");
+                    await connCentral.rollback();
+                    throw error;
+                }
+
+                await connFragment2.commit();
+            } catch (error) {
+                console.log("Node 3 rolls back!");
+                await connFragment2.rollback();
+                throw error;
+            }
+        }
+
+        await connFragment1.commit();
+    } catch (error) {
+        console.log("Node 2 rolls back!");
+        await connFragment1.rollback();
+        throw error;
+    } finally {
+        await connCentral.release();
+        await connFragment1.release();
+        await connFragment2.release();
+    }
+
+    return { central: resultCentral, node: resultFragment };
+}
+
+export async function routeUpdateFromFragment2(id, startYear, updates) {
+    // Initialize connections HERE rather than in the add row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
+    let resultCentral, resultFragment;
+
+    try {
+        await connFragment2.beginTransaction();
+
+        if (startYear < 2000) { // if data is not going into node 3, go node 2 then node 1
+            try {
+                await connFragment1.beginTransaction();
+
+                resultFragment = await updateRowByIDInNode(2, id, updates, connCentral);
+
+                try { // node 1 for last
+                    await connCentral.beginTransaction();
+
+                    resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                    await connCentral.commit();
+                } catch(error) {
+                    console.log("Node 1 rolls back!");
+                    await connCentral.rollback();
+                    throw error;
+                }
+
+                await connFragment1.commit();
+            } catch (error) {
+                console.log("Node 2 rolls back!");
+                await connFragment1.rollback();
+                throw error;
+            }
+        } else { // data is going into node 3! so do node 3 -> node 1
+            resultFragment = await updateRowByIDInNode(3, id, updates, connCentral);
+
+            try { // node 1 for last
+                await connCentral.beginTransaction();
+
+                resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
+
+                await connCentral.commit();
+            } catch(error) {
+                console.log("Node 1 rolls back!");
+                await connCentral.rollback();
+                throw error;
+            }
+        }
+
+        await connFragment2.commit();
+    } catch (error) {
+        console.log("Node 3 rolls back!");
+        await connFragment2.rollback();
+        throw error;
+    } finally {
+        connCentral.release();
+        connFragment1.release();
+        connFragment2.release();
+    }
+
+    return { central: resultCentral, node: resultFragment };
 }
 
 // PUT '/:vmid/routeUpdate/:id/:startYear'
-export async function routeUpdateToNode(vmid, id, updates) {
+/* export async function routeUpdateToNode(vmid, id, updates) {
     // check vmid and see if it should go to node 2 or 3
     // copy it to node 1 regardless
     console.log(`Routing this update request: ${vmid}`);
@@ -391,7 +772,7 @@ export async function routeUpdateToNode(vmid, id, updates) {
                 
                 resultCentral = await updateRowByIDInNode(1, id, updates, connCentral);
     
-                if (data.startYear < 2000) {
+                if (updates.startYear < 2000) {
                     try {
                         await connFragment1.beginTransaction();
                         resultFragment = await updateRowByIDInNode(2, id, updates, connCentral)
@@ -427,7 +808,7 @@ export async function routeUpdateToNode(vmid, id, updates) {
             try {
                 await connFragment1.beginTransaction();
 
-                if (data.startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
+                if (updates.startYear < 2000) { // if data is going to node 2 talaga, then proceed as normal!
                     resultFragment = await updateRowByIDInNode(2, id, updates, connCentral);
 
                     try {
@@ -439,6 +820,7 @@ export async function routeUpdateToNode(vmid, id, updates) {
                     } catch (error) {
                         console.log("Node 1 rolls back!");
                         await connCentral.rollback();
+                        throw error();
                     }
                 } else { // data is not actually going to node 2 pala
                     try { // node 3 first
@@ -476,7 +858,7 @@ export async function routeUpdateToNode(vmid, id, updates) {
             try {
                 await connFragment2.beginTransaction();
 
-                if (data.startYear < 2000) { // if data is not going into node 3, go node 2 then node 1
+                if (updates.startYear < 2000) { // if data is not going into node 3, go node 2 then node 1
                     try {
                         await connFragment1.beginTransaction();
 
@@ -532,4 +914,4 @@ export async function routeUpdateToNode(vmid, id, updates) {
     }
 
     return { central: resultCentral, node: resultFragment };
-}
+} */
