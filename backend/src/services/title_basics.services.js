@@ -24,7 +24,7 @@ export function simulateNodeFailure(vmid) {
 export function simulateNodeRecovery(vmid) {
     if (nodeStatus.hasOwnProperty(vmid)) {
         nodeStatus[vmid] = true;
-        console.log(`NODE ${vmid} IS NOW OFFLINE`);
+        console.log(`NODE ${vmid} IS BEING RECOVERED`);
     }
 }
 
@@ -48,7 +48,8 @@ export async function getAllFromNode(vmid) {
 }
 
 // POST '/:vmid/create'
-export async function addRowToNode(vmid, data) {
+// Connections being accepted here have already begun transaction
+export async function addRowToNode(vmid, data, conn) {
     const { 
         tconst,
         titleType, 
@@ -60,16 +61,10 @@ export async function addRowToNode(vmid, data) {
         runtimeMinutes, 
         genres 
     } = data;
-        
-    const db = await getDB(vmid);
 
-    const conn = await db.getConnection();
-
-    randomizeNodeFailure(vmid);
+    // randomizeNodeFailure(vmid);
 
     try {
-        await conn.beginTransaction();
-
         // Check if node has failed
         if (!nodeStatus[vmid]) {
             throw new Error(`Node ${vmid} is currently offline.`);
@@ -80,18 +75,12 @@ export async function addRowToNode(vmid, data) {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres]
         )
-
-        await conn.commit();
     } catch (error) {
         console.log("Rolling back!!!");
-        await conn.rollback();
-
         // Temporary fix: recover the node after failure
         simulateNodeRecovery(vmid);
 
         throw error;
-    } finally {
-        conn.release();
     }
 }
 
@@ -167,28 +156,103 @@ export async function routeCreateToNode(vmid, data) {
     // check vmid and see if it should go to node 2 or 3
     // copy it to node 1 regardless
     console.log(`Routing this create request: ${vmid}`);
+
+    // Initialize connections HERE rather than in the add row functions
+    const dbCentral = await getDB(1);
+    const connCentral = await dbCentral.getConnection();
+
+    const dbFragment1 = await getDB(2);
+    const connFragment1 = await dbFragment1.getConnection();
+
+    const dbFragment2 = await getDB(3);
+    const connFragment2 = await dbFragment2.getConnection();
+
     let resultCentral, resultFragment;
 
-    if (vmid === 2 || vmid === 3) {
-        console.log("Adding to fragment node first!")
-        resultFragment = await addRowToNode(vmid, data);
-        
-        console.log("Adding to central node next!")
-        resultCentral = await addRowToNode(1, data);
+    if (vmid === 1) {
+        try {
+            await connCentral.beginTransaction();
+            
+            resultCentral = await addRowToNode(vmid, data, connCentral);
 
-    } else if (vmid === 1) {
-        console.log("Adding to node 1!");
-        resultCentral = await addRowToNode(vmid, data);
-        
-        if (data.startYear < 2000) {
-            console.log("Adding to node 2!");
-            resultFragment = await addRowToNode(2, data);
-        }
-        else {
-            console.log("Adding to node 3!");
-            resultFragment = await addRowToNode(3, data);
+            if (data.startYear < 2000) {
+                try {
+                    await connFragment1.beginTransaction();
+                    resultFragment = await addRowToNode(2, data, connFragment1)
+
+                    // This only gets hit if previous succeeded
+                    await connFragment1.commit();
+                } catch (error) {
+                    console.log("Node 2 rolls back!");
+                    await connFragment1.rollback();
+                    throw error; // throws error to connCentral catch block
+                }
+            } else {
+                try {
+                    await connFragment2.beginTransaction();
+                    resultFragment = await addRowToNode(3, data, connFragment1)
+
+                    await connFragment2.commit();
+                } catch (error) {
+                    console.log("Node 3 rolls back!");
+                    connFragment2.rollback();
+                    throw error; // throws error to connCentral catch block
+                }
+            }
+
+            connCentral.commit();
+        } catch (error) {
+            console.log("Node 1 rolls back!");
+            connCentral.rollback();
+        } finally {
+            connCentral.release();
+            connFragment1.release();
+            connFragment2.release();
         }
     }
+
+    try {
+        if (vmid === 1) { // Node 1 creates
+            connCentral.beginTransaction();
+            resultCentral = await addRowToNode(vmid, data, connCentral);
+            
+            if (data.startYear < 2000) {
+                connFragment1.beginTransaction();
+                console.log("Adding to node 2!");
+                resultFragment = await addRowToNode(2, data, connFragment1);
+                connFragment1.commit();
+            }
+            else {
+                console.log("Adding to node 3!");
+                resultFragment = await addRowToNode(3, data, connFragment2);
+            }
+        } else if (vmid === 2) {
+            if (data.startYear >= 2000) { // invalid
+                console.log("Cannot add to node 2, will add to node 3 instead!");
+                resultFragment = await addRowToNode(3, data, connFragment2);
+            } else {
+                resultFragment = await addRowToNode(2, data, connFragment1);
+            }
+    
+            console.log("Adding to central node next!");
+            resultCentral = await addRowToNode(1, data, connCentral);
+        } else if (vmid === 3) {
+            if (data.startYear < 2000) { // invalid
+                console.log("Cannot add to node 3, will add to node 2 instead!");
+                resultFragment = await addRowToNode(2, data, connFragment1);
+            } else {
+                console.log("Adding to node 3!");
+                resultFragment = await addRowToNode(3, data, connFragment2);
+            }
+    
+            console.log("Adding to central node next!");
+            resultCentral = await addRowToNode(1, data, connCentral);
+        }
+    } catch (error) {
+        console.log("Rolling back!");
+        connCentral
+    }
+
 
     return { central: resultCentral, node: resultFragment };
 }
