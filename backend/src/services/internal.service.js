@@ -2,6 +2,7 @@ import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import lockManager from '../utils/lock_manager.js';
 import { registry } from './crud_registry.js'
+import 'dotenv/config';
 
 const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 
@@ -24,15 +25,22 @@ export const startTransaction = async (payload) => {
 
   // FRAGMENTATION LOGIC
   let targetNodes = PEER_NODES;
+  // if current node will also commit
+  let isParticipant = true;
   // Dont go to node B
   if (payload.startYear >= 2000) {
     targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3001'));
+    if (process.env.PORT == '3001') {
+      isParticipant = false;
+    }
   } else if (payload.startYear < 2000) { // Dont go to node C
     targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3002'));
+    if (process.env.PORT == '3002') {
+      isParticipant = false;
+    }
   }
-
-  // If no nodes match, return early
-  if (targetNodes.length === 0) {
+  // No peers and not a participant
+  if (targetNodes.length === 0 && !isParticipant) {
       return { success: false, message: "No nodes available for this shard key" };
   }
 
@@ -40,10 +48,19 @@ export const startTransaction = async (payload) => {
   try {
     const preparePromises = targetNodes.map(nodeURL =>
       axios.post(`${nodeURL}/internal/prepare`, { transactionId, timestamp, data: payload })
+        .then(res => res.data)  // get data of response ("YES"|"NO")
     );
+
+    // Inject local operation
+    if (isParticipant) {
+      preparePromises.push(
+        handlePrepare(transactionId, timestamp, payload)
+      )
+    }
+
     const prepareResponses = await Promise.all(preparePromises);
 
-    const allVotedYes = prepareResponses.every(res => res.data.vote === 'YES');
+    const allVotedYes = prepareResponses.every(res => res.vote === 'YES');
 
     if (!allVotedYes) {
       throw new Error("One or more nodes voted NO");
@@ -53,8 +70,11 @@ export const startTransaction = async (payload) => {
       axios.post(`${nodeURL}/internal/commit`, { transactionId })
     );
 
-    await Promise.all(commitPromises);
+    if (isParticipant) {
+      commitPromises.push(handleCommit(transactionId))
+    }
 
+    await Promise.all(commitPromises);
     console.log("Transaction committed successfully:", transactionId);
     return { success: true, transactionId, message: "Replicated to all nodes" };
   } catch (error) {
@@ -64,6 +84,12 @@ export const startTransaction = async (payload) => {
       axios.post(`${nodeURL}/internal/abort`, { transactionId })
         .catch(err => console.error(`Failed to abort on ${nodeURL}`, err.message))
     );
+
+    if (isParticipant) {
+      abortPromises.push(
+        handleAbort(transactionId).catch(e => console.error("Local abort failed", e))
+      )
+    }
     
     await Promise.all(abortPromises);
     
