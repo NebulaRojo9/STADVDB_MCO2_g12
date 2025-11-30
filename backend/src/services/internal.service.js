@@ -7,6 +7,7 @@ const pendingTransactions = new Map();
 
 export const startTransaction = async (payload) => {
   const transactionId = uuidv4();
+  const timestamp = Date.now();
   console.log("Starting transaction:", transactionId);
 
   // FRAGMENTATION LOGIC
@@ -26,7 +27,7 @@ export const startTransaction = async (payload) => {
   // REPLICATION LOGIC
   try {
     const preparePromises = targetNodes.map(nodeURL =>
-      axios.post(`${nodeURL}/internal/prepare`, { transactionId, data: payload })
+      axios.post(`${nodeURL}/internal/prepare`, { transactionId, timestamp, data: payload })
     );
     const prepareResponses = await Promise.all(preparePromises);
 
@@ -59,27 +60,61 @@ export const startTransaction = async (payload) => {
 }
 
 // 1st PHASE (VOTING)
-// TODO: ADD WAL
-export const handlePrepare = async (transactionId, payload) => {
+export const handlePrepare = async (transactionId, timestamp, payload) => {
   console.log("Prepare request for: ", transactionId);
   pendingTransactions.set(transactionId, payload);
-  return true;
+
+  const resourceId = `tx-${payload.id}`;
+
+  try {
+    await LockManager.acquire(resourceId, transactionId, 'EXCLUSIVE', timestamp);
+    console.log("Lock acquired for transaction: ", transactionId);
+
+    // TODO: ADD WAL
+    pendingTransactions.set(transactionId, {payload, resourceId, timestamp});
+    console.log(`[${transactionId}] Vote: YES (Lock Acquired)`);
+    return true;
+  } catch (error) {
+    console.error(`[${transactionId}] Vote: NO (Lock Acquisition Failed)`, error.message);
+    throw new Error(`CANNOT ACQUIRE LOCK: ${error.message}` );
+  }
 }
 
 // 2nd PHASE (DECISION MAKING)
 // TODO: ADD CHECK FOR MULTIPLE CALLS
 export const handleCommit = async (transactionId) => {
   console.log("Commit request for: ", transactionId);
-  const payload = pendingTransactions.get(transactionId);
-  // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
-  // Middleware for enrichment (appending path as metadata)
-  pendingTransactions.delete(transactionId);
-  console.log("Transaction committed: ", transactionId);
-  return { status: 'COMMITTED' };
+
+  const txState = pendingTransactions.get(transactionId);
+  if (!txState) {
+    throw new Error(`No pending transaction found for ID: ${transactionId}`);
+  }
+
+  try {
+    // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
+    // Middleware for enrichment (appending path as metadata)
+    const payload = txState.payload;
+    console.log("Transaction committed: ", transactionId);
+    return { status: 'COMMITTED' };
+  } finally {
+    if (txState && txState.resourceId) {
+      await LockManager.release(txState.resourceId, transactionId);
+      console.log("Lock released for transaction: ", transactionId);
+    }
+    pendingTransactions.delete(transactionId);
+  }
 }
 
 export const handleAbort = async (transactionId) => {
   console.log("Abort request for: ", transactionId);
+
+  const txState = pendingTransactions.get(transactionId);
+  
+  if (txState && txState.resourceId) {
+    await LockManager.release(txState.resourceId, transactionId);
+    console.log("Lock released for transaction: ", transactionId);
+  }
+
   pendingTransactions.delete(transactionId);
   console.log("Transaction aborted: ", transactionId);
   return { status: 'ABORTED' };
