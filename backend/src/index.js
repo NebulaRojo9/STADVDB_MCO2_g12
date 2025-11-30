@@ -1,8 +1,8 @@
 import express from 'express';
 import 'dotenv/config';
 import titleBasicsRouter from './routes/title_basics.routes.js';
+import internalRouter from './routes/internal.routes.js'
 import { initDB } from './config/connect.js';
-
 const app = express();
 await initDB()
 
