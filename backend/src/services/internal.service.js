@@ -10,21 +10,33 @@ export const startTransaction = async (payload) => {
   console.log("Starting transaction:", transactionId);
 
   // FRAGMENTATION LOGIC
+  let targetNodes = PEER_NODES;
   // Dont go to node B
   if (payload.startYear >= 2000) {
-    PEER_NODES.filter(nodeURL => !nodeURL.includes('3001'));
+    targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3001'));
   } else if (payload.startYear < 2000) { // Dont go to node C
-    PEER_NODES.filter(nodeURL => !nodeURL.includes('3002'));
+    targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3002'));
+  }
+
+  // If no nodes match, return early
+  if (targetNodes.length === 0) {
+      return { success: false, message: "No nodes available for this shard key" };
   }
 
   // REPLICATION LOGIC
   try {
-    const preparePromises = PEER_NODES.map(nodeURL =>
+    const preparePromises = targetNodes.map(nodeURL =>
       axios.post(`${nodeURL}/internal/prepare`, { transactionId, data: payload })
     );
-    await Promise.all(preparePromises);
+    const prepareResponses = await Promise.all(preparePromises);
 
-    const commitPromises = PEER_NODES.map(nodeURL =>
+    const allVotedYes = prepareResponses.every(res => res.data.vote === 'YES');
+
+    if (!allVotedYes) {
+      throw new Error("One or more nodes voted NO");
+    }
+
+    const commitPromises = targetNodes.map(nodeURL =>
       axios.post(`${nodeURL}/internal/commit`, { transactionId })
     );
 
@@ -34,16 +46,20 @@ export const startTransaction = async (payload) => {
     return { success: true, transactionId, message: "Replicated to all nodes" };
   } catch (error) {
     console.error("Error during transaction, aborting:", transactionId, error.message);
-    const abortPromises = PEER_NODES.map(nodeURL =>
-      axios.post(`${nodeURL}/internal/abort`, { transactionId }).catch(err => {
-        console.error(`Error aborting transaction on node ${nodeURL}:`, err.message);
-      }
-    ));
+    
+    const abortPromises = targetNodes.map(nodeURL => 
+      axios.post(`${nodeURL}/internal/abort`, { transactionId })
+        .catch(err => console.error(`Failed to abort on ${nodeURL}`, err.message))
+    );
+    
     await Promise.all(abortPromises);
+    
+    return { success: false, error: "Transaction Aborted" };
   }
 }
 
 // 1st PHASE (VOTING)
+// TODO: ADD WAL
 export const handlePrepare = async (transactionId, payload) => {
   console.log("Prepare request for: ", transactionId);
   pendingTransactions.set(transactionId, payload);
@@ -51,10 +67,11 @@ export const handlePrepare = async (transactionId, payload) => {
 }
 
 // 2nd PHASE (DECISION MAKING)
+// TODO: ADD CHECK FOR MULTIPLE CALLS
 export const handleCommit = async (transactionId) => {
   console.log("Commit request for: ", transactionId);
   const payload = pendingTransactions.get(transactionId);
-  // ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
+  // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
   // Middleware for enrichment (appending path as metadata)
   pendingTransactions.delete(transactionId);
   console.log("Transaction committed: ", transactionId);
