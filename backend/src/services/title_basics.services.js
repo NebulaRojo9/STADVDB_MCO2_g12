@@ -62,7 +62,7 @@ export async function addRowToNode(vmid, data, conn) {
         genres 
     } = data;
 
-    // randomizeNodeFailure(vmid);
+    randomizeNodeFailure(vmid);
 
     try {
         // Check if node has failed
@@ -76,7 +76,7 @@ export async function addRowToNode(vmid, data, conn) {
             [tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, genres]
         )
     } catch (error) {
-        console.log("Rolling back!!!");
+        console.log("Rolling back from addRowToNode");
         // Temporary fix: recover the node after failure
         simulateNodeRecovery(vmid);
 
@@ -119,7 +119,7 @@ export async function updateRowByIDInNode(vmid, id, updates) {
     
         return result;
     } catch (error) {
-        console.log("Rolling back!!!");
+        console.log("Rolling back form updateRowByIdInNode");
         await conn.rollback();
         throw error;
     } finally {
@@ -143,7 +143,7 @@ export async function deleteRowByIDInNode(vmid, id) {
 
         return result;
     } catch (error) {
-        console.log("Rolling back!!!");
+        console.log("Rolling back from deleteRowByIDInNode");
         await conn.rollback();
         throw error;
     } finally {
@@ -169,49 +169,55 @@ export async function routeCreateToNode(vmid, data) {
 
     let resultCentral, resultFragment;
 
-    if (vmid === 1) {
-        try {
-            await connCentral.beginTransaction();
-            
-            resultCentral = await addRowToNode(vmid, data, connCentral);
-
-            if (data.startYear < 2000) {
-                try {
-                    await connFragment1.beginTransaction();
-                    resultFragment = await addRowToNode(2, data, connFragment1)
-
-                    // This only gets hit if previous succeeded
-                    await connFragment1.commit();
-                } catch (error) {
-                    console.log("Node 2 rolls back!");
-                    await connFragment1.rollback();
-                    throw error; // throws error to connCentral catch block
+    try {
+        if (vmid === 1) {
+            try {
+                await connCentral.beginTransaction();
+                
+                resultCentral = await addRowToNode(vmid, data, connCentral);
+    
+                if (data.startYear < 2000) {
+                    try {
+                        await connFragment1.beginTransaction();
+                        resultFragment = await addRowToNode(2, data, connFragment1)
+    
+                        // This only gets hit if previous succeeded
+                        await connFragment1.commit();
+                    } catch (error) {
+                        console.log("Node 2 rolls back!");
+                        await connFragment1.rollback();
+                        throw error; // throws error to connCentral catch block
+                    }
+                } else {
+                    try {
+                        await connFragment2.beginTransaction();
+                        resultFragment = await addRowToNode(3, data, connFragment2)
+    
+                        // Only gets hit if previous succeeded
+                        await connFragment2.commit();
+                    } catch (error) {
+                        console.log("Node 3 rolls back!");
+                        await connFragment2.rollback();
+                        throw error; // throws error to connCentral catch block
+                    }
                 }
-            } else {
-                try {
-                    await connFragment2.beginTransaction();
-                    resultFragment = await addRowToNode(3, data, connFragment1)
-
-                    await connFragment2.commit();
-                } catch (error) {
-                    console.log("Node 3 rolls back!");
-                    connFragment2.rollback();
-                    throw error; // throws error to connCentral catch block
-                }
+    
+                await connCentral.commit();
+            } catch (error) {
+                console.log("Node 1 rolls back!");
+                await connCentral.rollback();
+                throw error;
             }
-
-            connCentral.commit();
-        } catch (error) {
-            console.log("Node 1 rolls back!");
-            connCentral.rollback();
-        } finally {
-            connCentral.release();
-            connFragment1.release();
-            connFragment2.release();
         }
+    } catch (mainError) {
+        throw mainError;
+    } finally {
+        connCentral.release();
+        connFragment1.release();
+        connFragment2.release();
     }
 
-    try {
+    /* try {
         if (vmid === 1) { // Node 1 creates
             connCentral.beginTransaction();
             resultCentral = await addRowToNode(vmid, data, connCentral);
@@ -249,9 +255,9 @@ export async function routeCreateToNode(vmid, data) {
             resultCentral = await addRowToNode(1, data, connCentral);
         }
     } catch (error) {
-        console.log("Rolling back!");
-        connCentral
-    }
+        console.log("Rolling back from rooute create to node");
+        throw error;
+    } */
 
 
     return { central: resultCentral, node: resultFragment };
