@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import lockManager from '../utils/lock_manager.js';
+import lockManager from './lock_manager.js';
 import { registry } from './crud_registry.js'
 import 'dotenv/config';
 
