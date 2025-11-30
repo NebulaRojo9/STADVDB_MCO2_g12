@@ -11,7 +11,11 @@ app.get("/", (req,res) => {
     res.send("Server is ready")
 })
 
-const port = process.env.PORT || 3000
+const port = process.env.PORT
+if (port == null) {
+    console.error("PORT environment variable is not set.");
+    process.exit(1);
+}
 
 app.listen(port, () => {
   console.log(`Serve at http://localhost:${port}`);
