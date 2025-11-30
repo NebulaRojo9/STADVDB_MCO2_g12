@@ -1,0 +1,56 @@
+### 1) Start a "young" transaction that holds the EXCLUSIVE lock for 10s
+POST http://localhost:4000/direct/resource-1/long-acquire
+X-Transaction-Id: tx-young
+X-Timestamp: 2000
+X-Lock-Type: EXCLUSIVE
+X-Hold-Ms: 5000
+
+### NOTE: Run the request above first (in a separate REST Client tab or terminal). It will keep the connection open while it holds the lock.
+
+
+### 2) While `tx-young` is holding the lock, send an older transaction that should wound the younger
+POST http://localhost:4000/direct/resource-1/acquire
+X-Transaction-Id: tx-old
+X-Timestamp: 1000
+X-Lock-Type: EXCLUSIVE
+
+### Expected behavior:
+# - `tx-old` has a smaller timestamp (older) and should wound `tx-young`.
+# - `tx-young`'s long-acquire request should receive a 409 (aborted) while `tx-old` should acquire and return 200.
+
+
+### 3) (Optional) If the long-acquire didn't auto-release (or you want to force release), call release:
+POST http://localhost:4000/direct/resource-1/release
+X-Transaction-Id: tx-young
+
+### 4) Shared-lock example: two shared requests can coexist
+GET http://localhost:4000/direct/resource-shared/acquire
+X-Transaction-Id: tx-a
+X-Timestamp: 3000
+X-Lock-Type: SHARED
+
+GET http://localhost:4000/direct/resource-shared/acquire
+X-Transaction-Id: tx-b
+X-Timestamp: 4000
+X-Lock-Type: SHARED
+
+### 5) Exclusive vs Shared: exclusive should block when shared exists
+POST http://localhost:4000/direct/myres/long-acquire
+X-Transaction-Id: tx-shared-holder
+X-Timestamp: 5000
+X-Lock-Type: SHARED
+X-Hold-Ms: 10000
+
+# (in parallel)
+POST http://localhost:4000/direct/myres/acquire
+X-Transaction-Id: tx-exclusive
+X-Timestamp: 6000
+X-Lock-Type: EXCLUSIVE
+
+###
+POST http://localhost:4000/direct/myres/acquire
+X-Transaction-Id: tx-exclusive
+X-Timestamp: 8000
+X-Lock-Type: EXCLUSIVE
+
+### Expected: exclusive waits (or times out if you add timeout behavior)
