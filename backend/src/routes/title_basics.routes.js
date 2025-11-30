@@ -23,5 +23,5 @@ router.put('/:vmid/routeUpdate/:id/:startYear', titleBasicsController.routeUpdat
 router.delete('/:vmid/routeDelete/:id/:startYear', titleBasicsController.routeDeleteRowFromNode);
 
 router.put('/update/:id', titleBasicsCrudController.updateTitle)
-router.post('/create', titleBasicsCrudController.updateTitle)
+router.post('/create', titleBasicsCrudController.createTitle)
 export default router;

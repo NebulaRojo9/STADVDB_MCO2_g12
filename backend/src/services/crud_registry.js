@@ -1,7 +1,5 @@
-import { getDB } from '../config/connect.js'
 import * as title_crud from './title_basics_crud.services.js'
 
-const pool = getDB()
 export const registry = {
   UPDATE_TITLE: {
     validate: async (payload) => {

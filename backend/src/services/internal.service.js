@@ -122,11 +122,11 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
     await handler.validate(payload);
 
     pendingTransactions.set(transactionId, {payload, resourceId, timestamp});
-    console.log(`[${transactionId}] Vote: YES (Lock Acquired)`);
+    console.log(`[${transactionId}] PORT[${process.env.PORT}] Vote: YES (Lock Acquired)`);
     return { vote: 'YES' };
   } catch (error) {
     lockManager.release(resourceId, transactionId)
-    console.error(`[${transactionId}] Vote: NO (Validation Failed)`, error.message);
+    console.error(`[${transactionId}] PORT[${process.env.PORT}] Vote: NO (Validation Failed)`, error.message);
     throw new Error(`VALIDATION FAILED: ${error.message}`);
   }
 }
