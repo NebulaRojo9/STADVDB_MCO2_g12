@@ -3,8 +3,11 @@ import 'dotenv/config';
 import titleBasicsRouter from './routes/title_basics.routes.js';
 import internalRouter from './routes/internal.routes.js'
 import { initDB } from './config/connect.js';
+import { performRecovery } from './services/internal.service.js';
+
 const app = express();
 await initDB()
+await performRecovery();
 
 app.use(express.json());
 app.use('/title-basics', titleBasicsRouter);

@@ -2,7 +2,7 @@
 
 // IMPORT THE SERVICE, NOT THE CONTROLLER
 import * as titleService from '../services/title_basics_crud.services.js';
-import { startTransaction, broadcastReadRow, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost} from '../services/internal.service.js'; 
+import { startTransaction, broadcastReadRow, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost, broadcastResetDatabases} from '../services/internal.service.js'; 
 
 export const readTitle = async (req, res) => {
   const { id } = req.params;
@@ -173,4 +173,34 @@ export const deleteTitle = async (req, res) => {
     console.error(err);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
+}
+
+export async function resetDatabases(req, res) {
+    try {
+        const resultPeers = await broadcastResetDatabases();
+
+        res.status(200).json(resultPeers);
+    } catch (error) {
+        console.error('Error in deleteRowByIDInNode controller: ', error);
+        
+        res.status(500).json({
+            message: "Transaction failed",
+            error: error.message
+        });
+    }
+}
+
+export async function internalResetDatabases(req, res) {
+    try {
+        const result = await titleService.resetDatabases();
+
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('Error in deleteRowByIDInNode controller: ', error);
+        
+        res.status(500).json({
+            message: "Transaction failed",
+            error: error.message
+        });
+    }
 }

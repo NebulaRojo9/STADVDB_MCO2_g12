@@ -4,6 +4,7 @@ import lockManager from './lock_manager.js';
 import { registry } from './crud_registry.js'
 import * as walServices from './wal.service.js'
 import 'dotenv/config';
+import { setTimeout as sleep } from 'timers/promises';
 
 const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 
@@ -51,6 +52,27 @@ export const aggregateAllTitlesFromPeers = async (hostURL) => {
     }
 }
 
+export const broadcastResetDatabases = async () => {
+  console.log(`Broadcasting reset database request to peers`);
+
+  for (const peerUrl of PEER_NODES) {
+    try {
+      const response = await axios.delete(`${peerUrl}/title-basics/resetDatabases`)
+      console.log(response)
+
+      if (response.status === 200) {
+        return response.data
+      }
+    } catch (err) {
+      if (err.response && err.response.status !== 404) {
+        console.error(`[DELETE] Peer ${peerUrl} error:`, err.message)
+      }
+    }
+  }
+
+  return null;
+}
+
 /**
  * 
  * @param {*} payload 
@@ -86,7 +108,10 @@ export const startTransaction = async (payload) => {
       return { success: false, message: "No nodes available for this shard key" };
   }
 
+  walServices.writeLog(transactionId, payload.action, "PREPARE", payload);
+
   // REPLICATION LOGIC
+
   try {
     const preparePromises = targetNodes.map(nodeURL =>
       axios.post(`${nodeURL}/internal/prepare`, { transactionId, timestamp, data: payload })
@@ -94,19 +119,26 @@ export const startTransaction = async (payload) => {
     );
 
     // Inject local operation
+
     if (isParticipant) {
       preparePromises.push(
         handlePrepare(transactionId, timestamp, payload)
       )
     }
 
+    // Phase 1: Obtaining a Decision
     const prepareResponses = await Promise.all(preparePromises);
 
     const allVotedYes = prepareResponses.every(res => res.vote === 'YES');
 
+    // Since transaction manager decided that we can't proceed, send a no to log from Ci
     if (!allVotedYes) {
+      walServices.writeLog(transactionId, payload.action, "ABORT", {error: "Not all nodes said yes"})
       throw new Error("One or more nodes voted NO");
     }
+
+    walServices.writeLog(transactionId, payload.action, "COMMIT", payload);
+
 
     const commitPromises = targetNodes.map(nodeURL =>
       axios.post(`${nodeURL}/internal/commit`, { transactionId })
@@ -140,9 +172,7 @@ export const startTransaction = async (payload) => {
 }
 
 // 1st PHASE (VOTING)
-export const handlePrepare = async (transactionId, timestamp, payload) => {
-  console.log("Prepare request for: ", transactionId);
-
+export const handlePrepare = async (transactionId, timestamp, payload) => {  
   if (committedHistory.has(transactionId)) {
     return { vote: "YES" };
   }
@@ -160,16 +190,17 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
     throw new Error(`CANNOT ACQUIRE LOCK: ${error.message}` );
   }
   try {
-    // TODO: ADD WAL
-    walServices.writeLog(transactionId, payload.action, "PREPARED", payload)
+    walServices.writeLog(transactionId, payload.action, "READY", payload); // site promises it can commit if asked
 
     await handler.validate(payload);
 
     pendingTransactions.set(transactionId, {payload, resourceId, timestamp});
     console.log(`[${transactionId}] PORT[${process.env.PORT}] Vote: YES (Lock Acquired)`);
+    console.log("HEREEE");
     return { vote: 'YES' };
   } catch (error) {
-    walServices.writeLog(transactionId, payload.action, "ABORTED", { error: error.message })
+    // Recovery???
+    walServices.writeLog(transactionId, payload.action, "ABORT", { error: error.message })
     lockManager.release(resourceId, transactionId)
     console.error(`[${transactionId}] PORT[${process.env.PORT}] Vote: NO (Validation Failed)`, error.message);
     throw new Error(`VALIDATION FAILED: ${error.message}`);
@@ -180,6 +211,7 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
 // TODO: ADD CHECK FOR MULTIPLE CALLS
 export const handleCommit = async (transactionId) => {
   console.log("Commit request for: ", transactionId);
+  walServices.writeLog(transactionId, "UNKNOWN", "COMMIT", {});
 
   if (committedHistory.has(transactionId)) {
     return { status: 'COMMITTED_ALREADY' };
@@ -194,11 +226,10 @@ export const handleCommit = async (transactionId) => {
     const stillLocked = lockManager.isLockedBy(resourceId, transactionId);
     if (!stillLocked) {
       throw new Error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
-    }
+    } //
 
     // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
     // Middleware for enrichment (appending path as metadata)
-    walServices.writeLog(transactionId, payload.action, "COMMITTED", {})
 
     const handler = registry[payload.action]
     await handler.execute(payload)
@@ -225,17 +256,40 @@ export const handleCommit = async (transactionId) => {
 
 export const handleAbort = async (transactionId) => {
   console.log("Abort request for: ", transactionId);
+  walServices.writeLog(transactionId, 'UNKNOWN', 'ABORT', {});
 
-  walServices.writeLog(transactionId, 'UNKNOWN', 'ABORTED', {});
-
-  const txState = pendingTransactions.get(transactionId);
+  const transactionState = pendingTransactions.get(transactionId);
   
-  if (txState && txState.resourceId) {
-    await lockManager.release(txState.resourceId, transactionId);
+  if (transactionState && transactionState.resourceId) {
+    await lockManager.release(transactionState.resourceId, transactionId);
     console.log("Lock released for transaction: ", transactionId);
   }
 
   pendingTransactions.delete(transactionId);
   console.log("Transaction aborted: ", transactionId);
   return { status: 'ABORTED' };
+}
+
+export const performRecovery = async () => {
+  console.log("Checking log file for recovery");
+
+  const transactions = await walServices.recoverFromLogs();
+  let recoveryCount = 0;
+
+  for (const [transactionId, data] of transactions) {
+    const { lastStatus, action } = data; 
+
+    if (lastStatus !== 'COMMIT' || lastStatus !== 'ABORT') { // this will get rolled back
+      console.warn(`[RECOVERY] Found orphaned transaction ${transactionId} (Action: ${action}). Rolling back.`);
+
+      walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery' });
+      recoveryCount++;
+    }
+
+    if (recoveryCount > 0) {
+      console.log(`[WAL] Recovery complete, Rolled back ${recoveryCount} unfinished transactions`);
+    } else{
+      console.log(`[WAL] No unfinished transactions found`);
+    }
+  }
 }
