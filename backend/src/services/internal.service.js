@@ -131,8 +131,13 @@ export const startTransaction = async (payload, isLocal = false) => {
 
     // Inject local operation
     if (isParticipant) {
-      preparePromises.push(handlePrepare(transactionId, timestamp, payload, processTrace))
       processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} calling [PREPARE] to self ${process.env.PORT}`)
+      const localPromise = handlePrepare(transactionId, timestamp, payload)
+      .then(res => {
+          if (res.processTrace) processTrace.get().push(...res.processTrace);
+          return res;
+      });
+      preparePromises.push(localPromise)
       console.log(`[TM:${process.env.PORT}] Tx ${transactionId} calling [PREPARE] to self ${process.env.PORT}`)
     }
 
@@ -156,9 +161,13 @@ export const startTransaction = async (payload, isLocal = false) => {
     });
 
     if (isParticipant) {
-      commitPromises.push(handleCommit(transactionId, processTrace))
-      processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} calling [COMMIT] to self ${process.env.PORT}`)
-      console.log(`[TM:${process.env.PORT}] Tx ${transactionId} calling [COMMIT] to self ${process.env.PORT}`)
+      processTrace.log(`[TM:${process.env.PORT}] Calling COMMIT on self`);
+      const localPromise = handleCommit(transactionId)
+        .then(res => {
+          if (res.processTrace) processTrace.get().push(...res.processTrace);
+          return res;
+        });
+      commitPromises.push(localPromise);
     }
 
     const commitResults = await Promise.all(commitPromises);
@@ -182,7 +191,7 @@ export const startTransaction = async (payload, isLocal = false) => {
     );
 
     if (isParticipant) {
-      abortPromises.push(handleAbort(transactionId, processTrace).catch(e => console.error("Local abort failed", e)))
+      abortPromises.push(handleAbort(transactionId).catch(e => console.error("Local abort failed", e)))
       processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [ABORT] to self ${process.env.PORT}`)
       console.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [ABORT] to self ${process.env.PORT}`)
     }
@@ -196,16 +205,21 @@ export const startTransaction = async (payload, isLocal = false) => {
 }
 
 // 1st PHASE (VOTING)
-export const handlePrepare = async (transactionId, timestamp, payload, processTrace) => {
+export const handlePrepare = async (transactionId, timestamp, payload) => {
+  const processTrace = createTrace();
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [PREPARE]`)
   console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [PREPARE]`)
 
   if (committedHistory.has(transactionId)) {
-    return { vote: "YES" };
+    return { vote: "YES", processTrace: processTrace.get() };
   }
 
   const handler = registry[payload.action]
-  if (!handler) throw new Error(`Unknown action type: ${payload.action}`);
+  if (!handler) {
+    console.error(`Unknown action type: ${payload.action}`);
+    processTrace.log(`Unknown action type: ${payload.action}`);
+    return { vote: "NO"};
+  }
 
   const resourceId = `tx-${payload.id}`;
 
@@ -218,7 +232,7 @@ export const handlePrepare = async (transactionId, timestamp, payload, processTr
   } catch (error) {
     processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Lock Acquisition Failed)`, error.message);
     console.error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Lock Acquisition Failed)`, error.message);
-    throw new Error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
+    return { vote: "NO", processTrace: processTrace.get()}
   }
   try {
     // TODO: ADD WAL
@@ -233,30 +247,35 @@ export const handlePrepare = async (transactionId, timestamp, payload, processTr
     lockManager.release(resourceId, transactionId)
     processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
     console.error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
-    throw new Error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
+    return { vote: "NO", processTrace: processTrace.get() }
   }
 }
 
 // 2nd PHASE (DECISION MAKING)
 // TODO: ADD CHECK FOR MULTIPLE CALLS
-export const handleCommit = async (transactionId, processTrace) => {
+export const handleCommit = async (transactionId) => {
+  const processTrace = createTrace();
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
   console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
 
 
   if (committedHistory.has(transactionId)) {
-    return { status: 'COMMITTED_ALREADY' };
+    return { status: 'COMMITTED_ALREADY', processTrace: processTrace.get()};
   }
 
   const txState = pendingTransactions.get(transactionId);
   if (!txState) {
-    throw new Error(`No pending transaction found for ID: ${transactionId}`);
+    processTrace.log(`No pending transaction found for ID: ${transactionId}`);
+    console.error(`No pending transaction found for ID: ${transactionId}`);
+    return { status: "ERROR", processTrace: processTrace.get()}
   }
   const { payload, resourceId } = txState;
   try {
     const stillLocked = lockManager.isLockedBy(resourceId, transactionId);
     if (!stillLocked) {
-      throw new Error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
+      processTrace.log(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
+      console.error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
+      return { status: "ERROR", processTrace: processTrace.get()}
     }
 
     const handler = registry[payload.action]
@@ -274,7 +293,7 @@ export const handleCommit = async (transactionId, processTrace) => {
   } catch (e) {
     processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} commit failed`, e.message)
     console.error(`[TM:${process.env.PORT}] Tx ${transactionId} commit failed`, e.message)
-    throw e; // Coordinator needs to know
+    return { status: 'ERROR', processTrace: processTrace.get()};
   } finally {
     if (txState && txState.resourceId) {
       await lockManager.release(txState.resourceId, transactionId);
@@ -285,7 +304,8 @@ export const handleCommit = async (transactionId, processTrace) => {
   }
 }
 
-export const handleAbort = async (transactionId, processTrace) => {
+export const handleAbort = async (transactionId) => {
+  const processTrace = createTrace();
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
   console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
 
