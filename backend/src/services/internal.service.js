@@ -9,7 +9,15 @@ const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 const pendingTransactions = new Map();
 const committedHistory = new Set();
 
-export const broadcastRead = async (id) => {
+export const getHostNodeUrl = () => {
+  return PEER_NODES.find(url => url.includes('3000'));
+}
+
+export const isHost = () => {
+  return process.env.PORT === '3000'
+}
+
+export const broadcastReadRow = async (id) => {
   console.log(`[READ] Broadcasting read request for ${id} to peers`);
 
   for (const peerUrl of PEER_NODES) {
@@ -28,6 +36,18 @@ export const broadcastRead = async (id) => {
   }
 
   return null;
+}
+
+export const aggregateAllTitlesFromPeers = async (hostURL) => {
+  if (!hostURL) return [];
+
+  try {
+      const response = await axios.get(`${hostURL}/title-basics/readAll`);
+      return response.data
+    } catch (err) {
+      console.error(`Failed to fetch data from peer ${hostURL}:`, err.message)
+      return [];
+    }
 }
 
 /**

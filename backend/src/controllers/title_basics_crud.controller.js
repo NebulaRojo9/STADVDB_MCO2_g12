@@ -2,7 +2,7 @@
 
 // IMPORT THE SERVICE, NOT THE CONTROLLER
 import * as titleService from '../services/title_basics_crud.services.js';
-import { startTransaction, broadcastRead } from '../services/internal.service.js'; 
+import { startTransaction, broadcastReadRow, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost} from '../services/internal.service.js'; 
 
 export const readTitle = async (req, res) => {
   const { id } = req.params;
@@ -14,7 +14,7 @@ export const readTitle = async (req, res) => {
       return res.status(200).json(localData);
     }
 
-    const peerData = await broadcastRead(id);
+    const peerData = await broadcastReadRow(id);
 
     if (peerData) {
       return res.status(200).json(peerData);
@@ -27,6 +27,43 @@ export const readTitle = async (req, res) => {
 }
 
 export const readTitleAll = async (req, res) => {
+  try {
+    let localTitles = await titleService.findAllFromNode();
+    let finalTitles = localTitles
+
+    
+    if (!isHost()) { // if it is NOT host
+      const hostURL = getHostNodeUrl();
+
+      if (hostURL) {
+        console.log("HOST WAS FOUND")
+        const peerTitles = await aggregateAllTitlesFromPeers(hostURL);
+        console.log("done agg")
+
+        const combined = localTitles.concat(peerTitles);
+
+        // De-duplicating
+        const uniqueTitles = {};
+        combined.forEach(title => {
+            uniqueTitles[title.tconst] = title;
+        });
+
+        finalTitles = Object.values(uniqueTitles);
+
+        console.log("final Titles");
+        console.log(finalTitles);
+      }
+    }
+
+    return res.status(200).json(finalTitles);
+  } catch (err) {
+    console.error("Controller Error:". err)
+    return res.status(500).json({ error: err })
+  }
+}
+
+// helper function, wont connect to frontend
+export const readTitleFromNode = async (req, res) => {
   try {
     const titles = await titleService.findAllFromNode();
 
