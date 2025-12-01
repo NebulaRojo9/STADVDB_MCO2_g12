@@ -1,4 +1,5 @@
 export const requireStartYear = (req, res, next) => {
+  req.body = req.body || {}; 
   let startYear = req.body.startYear || req.query.startYear;
 
   if (startYear === undefined || startYear === null) {
@@ -18,7 +19,6 @@ export const requireStartYear = (req, res, next) => {
   }
 
   // normalize to body (should be present even if startYear is only in query parameter)
-  req.body = req.body || {}; 
   req.body.startYear = yearInt;
 
   next();

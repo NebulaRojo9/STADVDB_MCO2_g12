@@ -15,7 +15,7 @@ Content-Type: application/json
 }
 
 ### READ a single title by ID
-GET http://localhost:3001/title-basics/read/tt1234567?startYear=2025
+GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025
 
 ### READ ALL titles
 GET http://localhost:3000/title-basics/readAll

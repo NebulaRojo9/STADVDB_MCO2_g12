@@ -7,10 +7,10 @@ const router = Router();
 
 router.get('/init', titleBasicsController.init);
 
-router.get('/read/:id', requireStartYear, titleBasicsCrudController.readTitle);
 router.get('/readAll', titleBasicsCrudController.readTitleAll);
 router.get('/readAllFromNode', titleBasicsCrudController.readTitleFromNode);
 router.post('/create', requireStartYear, titleBasicsCrudController.createTitle);
+router.get('/read/:id', requireStartYear, titleBasicsCrudController.readTitle);
 router.put('/update/:id', requireStartYear, titleBasicsCrudController.updateTitle);
 router.delete('/delete/:id', requireStartYear, titleBasicsCrudController.deleteTitle);
 
