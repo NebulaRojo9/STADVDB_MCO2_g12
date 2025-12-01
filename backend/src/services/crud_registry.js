@@ -2,6 +2,7 @@ import * as title_crud from './title_basics_crud.services.js'
 
 export const registry = {
   CREATE_TITLE: {
+    lockType: 'EXCLUSIVE',
     validate: async (payload) => {
       await title_crud.canBeCreated(payload.data);
       return true
@@ -10,7 +11,18 @@ export const registry = {
       await title_crud.createTitle(payload.data);
     }
   },
+  READ_TITLE: {
+    lockType: 'SHARED',
+    validate: async (payload) => {
+      await title_crud.findById(payload.id);
+      return true
+    },
+    execute: async (payload) => {
+      return await title_crud.findById(payload.id);
+    }
+  },
   UPDATE_TITLE: {
+    lockType: 'EXCLUSIVE',
     validate: async (payload) => {
       const title = await title_crud.findById(payload.id);
       return true
@@ -20,6 +32,7 @@ export const registry = {
     }
   },
   DELETE_TITLE: {
+    lockType: 'EXCLUSIVE',
     validate: async (payload) => {
       const title = await title_crud.findById(payload.id);
       return true

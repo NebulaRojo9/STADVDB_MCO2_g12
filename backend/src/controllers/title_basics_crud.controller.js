@@ -2,26 +2,23 @@
 
 // IMPORT THE SERVICE, NOT THE CONTROLLER
 import * as titleService from '../services/title_basics_crud.services.js';
-import { startTransaction, broadcastReadRow, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost} from '../services/internal.service.js'; 
+import { startTransaction, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost} from '../services/internal.service.js'; 
 
 export const readTitle = async (req, res) => {
   const { id } = req.params;
+  // optional
+  const { startYear } = req.query; 
 
   try {
-    const localData = await titleService.findById(id);
-    if (localData) {
-      console.log(`[READ] Found ${id} locally`);
-      return res.status(200).json(localData);
-    }
+    const titleData = await startReadTitle(id, startYear);
 
-    const peerData = await broadcastReadRow(id);
-
-    if (peerData) {
-      return res.status(200).json(peerData);
+    if (titleData) {
+      return res.status(200).json(titleData);
     }
 
     return res.status(404).json({ error: "Title not found on any node" });
   } catch (err) {
+    console.error("Read Error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }

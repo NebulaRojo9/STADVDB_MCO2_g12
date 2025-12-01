@@ -17,27 +17,6 @@ export const isHost = () => {
   return process.env.PORT === '3000'
 }
 
-export const broadcastReadRow = async (id) => {
-  console.log(`[READ] Broadcasting read request for ${id} to peers`);
-
-  for (const peerUrl of PEER_NODES) {
-    try {
-      const response = await axios.get(`${peerUrl}/title-basics/read/${id}`)
-
-      if (response.status === 200) {
-        console.log(`[READ] Found ${id} on peer ${peerUrl}`);
-        return response.data
-      }
-    } catch (err) {
-      if (err.response && err.response.status !== 404) {
-        console.error(`[READ] Peer ${peerUrl} error:`, err.message)
-      }
-    }
-  }
-
-  return null;
-}
-
 export const aggregateAllTitlesFromPeers = async (hostURL) => {
   if (!hostURL) return [];
 
@@ -50,6 +29,40 @@ export const aggregateAllTitlesFromPeers = async (hostURL) => {
     }
 }
 
+export const startReadTitle = async (id, startYear = undefined) => {
+  // No start year specified for read title, but if it is we can skip this part
+  if (!startYear) {
+    // Check self if record exists
+    const localResult = await startTransaction({
+      action: 'READ_TITLE',
+      id: id,
+      startYear: startYear 
+    }, true); 
+
+    if (localResult.success && localResult.data) {
+      console.log(`[READ] Found locally on ${process.env.PORT}`);
+      return localResult.data;
+    }
+  }
+  // Broadcast to Everyone (or specific node if startYear known)
+  const payload = {
+    action: 'READ_TITLE',
+    id: id,
+    startYear: startYear
+  };
+
+  const result = await startTransaction(payload);
+  
+  if (!result.success) {
+    if (result.message === "Transaction Committed" && !result.data) {
+       return null;
+    }
+    throw new Error(`Read failed: ${result.error || result.message}`);
+  }
+
+  return result.data;
+}
+
 /**
  * 
  * @param {*} payload 
@@ -59,7 +72,7 @@ export const aggregateAllTitlesFromPeers = async (hostURL) => {
  *  data: req.body
  * }
  */
-export const startTransaction = async (payload) => {
+export const startTransaction = async (payload, isLocal = false) => {
   const transactionId = uuidv4();
   const timestamp = Date.now();
   console.log("Starting transaction:", transactionId);
@@ -68,21 +81,30 @@ export const startTransaction = async (payload) => {
   let targetNodes = PEER_NODES;
   // if current node will also commit
   let isParticipant = true;
-  // Dont go to node B
-  if (payload.startYear >= 2000) {
-    targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3001'));
-    if (process.env.PORT == '3001') {
-      isParticipant = false;
-    }
-  } else if (payload.startYear < 2000) { // Dont go to node C
-    targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3002'));
-    if (process.env.PORT == '3002') {
-      isParticipant = false;
-    }
+
+  // if local run only
+  if (isLocal) {
+    targetNodes = []
+    isParticipant = true;
   }
-  // No peers and not a participant
-  if (targetNodes.length === 0 && !isParticipant) {
-      return { success: false, message: "No nodes available for this shard key" };
+  // only selects target nodes if we specify a year (CREATE UPDATE DELETE), else broadcast (READ)
+  else if (payload.startYear !== undefined && payload.startYear !== null) {
+    // Dont go to node B
+    if (payload.startYear >= 2000) {
+      targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3001'));
+      if (process.env.PORT == '3001') {
+        isParticipant = false;
+      }
+    } else if (payload.startYear < 2000) { // Dont go to node C
+      targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3002'));
+      if (process.env.PORT == '3002') {
+        isParticipant = false;
+      }
+    }
+    // No peers and not a participant
+    if (targetNodes.length === 0 && !isParticipant) {
+        return { success: false, message: "No nodes available for this shard key" };
+    }
   }
 
   // REPLICATION LOGIC
@@ -108,16 +130,19 @@ export const startTransaction = async (payload) => {
     }
 
     const commitPromises = targetNodes.map(nodeURL =>
-      axios.post(`${nodeURL}/internal/commit`, { transactionId })
+      axios.post(`${nodeURL}/internal/commit`, { transactionId }).then(res => res.data)
     );
 
     if (isParticipant) {
       commitPromises.push(handleCommit(transactionId))
     }
 
-    await Promise.all(commitPromises);
+    const commitResults = await Promise.all(commitPromises);
+    const resultData = commitResults
+      .map(res => res.data) // extract data from axios response
+      .find(data => data !== null && data !== undefined);
     console.log("Transaction committed successfully:", transactionId);
-    return { success: true, transactionId, message: "Replicated to all nodes" };
+    return { success: true, transactionId, data: resultData, message: "Replicated to all nodes" };
   } catch (error) {
     console.error("Error during transaction, aborting:", transactionId, error.message);
     
@@ -151,8 +176,10 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
 
   const resourceId = `tx-${payload.id}`;
 
+  const lockType = handler.lockType || 'EXCLUSIVE';
+
   try {
-    await lockManager.acquire(resourceId, transactionId, 'EXCLUSIVE', timestamp);
+    await lockManager.acquire(resourceId, transactionId, lockType, timestamp);
     console.log("Lock acquired for transaction: ", transactionId);
   } catch (error) {
     console.error(`[${transactionId}] Vote: NO (Lock Acquisition Failed)`, error.message);
@@ -192,10 +219,8 @@ export const handleCommit = async (transactionId) => {
       throw new Error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
     }
 
-    // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
-    // Middleware for enrichment (appending path as metadata)
     const handler = registry[payload.action]
-    await handler.execute(payload)
+    const result = await handler.execute(payload)
     
     // Clean up
     setTimeout(() => {
@@ -204,7 +229,7 @@ export const handleCommit = async (transactionId) => {
 
     committedHistory.add(transactionId);
     console.log("Transaction committed: ", transactionId);
-    return { status: 'COMMITTED' };
+    return { status: 'COMMITTED', data: result };
   } catch (e) {
     console.error(`[${transactionId}] Commit Failed`, e.message);
     throw e; // Coordinator needs to know
