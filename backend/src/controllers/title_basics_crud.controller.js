@@ -102,7 +102,8 @@ export const createTitle = async (req, res) => {
       console.error("Transaction failed:", result.error);
       return res.status(409).json({ 
         error: 'Create failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 
@@ -135,7 +136,8 @@ export const updateTitle = async (req, res) => {
       // If 2PC failed (Abort or Voted No)
       return res.status(409).json({ 
         error: 'Update failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 
@@ -167,7 +169,8 @@ export const deleteTitle = async (req, res) => {
       // If 2PC failed (Abort or Voted No)
       return res.status(409).json({ 
         error: 'Update failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 
