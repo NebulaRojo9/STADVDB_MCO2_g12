@@ -2,7 +2,7 @@
 
 // IMPORT THE SERVICE, NOT THE CONTROLLER
 import * as titleService from '../services/title_basics_crud.services.js';
-import { startTransaction, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost} from '../services/internal.service.js'; 
+import { startTransaction, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost, startReadTitle} from '../services/internal.service.js'; 
 
 export const readTitle = async (req, res) => {
   const { id } = req.params;
