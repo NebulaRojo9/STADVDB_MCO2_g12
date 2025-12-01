@@ -7,5 +7,6 @@ const router = Router();
 router.post('/commit', internalController.receiveCommit)
 router.post('/abort', internalController.receiveAbort)
 router.post('/prepare', internalController.receivePrepare)
+router.post('/checkStatus/:id', internalController.checkTransactionStatus)
 
 export default router;

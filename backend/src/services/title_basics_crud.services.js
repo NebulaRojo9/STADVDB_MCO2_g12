@@ -61,8 +61,6 @@ export async function createTitle(data) {
   return result;
 }
 
-
-
 export async function updateTitle(id, data) {
   const pool = await getDB();
 
@@ -97,4 +95,34 @@ export async function deleteTitle(id) {
   const result = await pool.execute(sql, [id])
 
   return result
+}
+
+export async function resetDatabases() {
+    const dbCentral = await getDB();
+
+    const dropQuery = `DROP TABLE IF EXISTS title_basics;`;
+    
+    let result;
+
+    const createQuery = `
+        CREATE TABLE title_basics (
+            tconst VARCHAR(10) PRIMARY KEY,
+            titleType VARCHAR(50), 
+            primaryTitle VARCHAR(255), 
+            originalTitle VARCHAR(255), 
+            isAdult BOOLEAN, 
+            startYear INT, 
+            endYear INT, 
+            runtimeMinutes INT, 
+            genres VARCHAR(255)
+        );`;
+
+    try {
+        result = await dbCentral.query(dropQuery);
+        result = await dbCentral.query(createQuery);
+    } catch (error) {
+        throw error;
+    }
+
+    return result;
 }

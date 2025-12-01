@@ -2,26 +2,23 @@
 
 // IMPORT THE SERVICE, NOT THE CONTROLLER
 import * as titleService from '../services/title_basics_crud.services.js';
-import { startTransaction, broadcastReadRow, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost} from '../services/internal.service.js'; 
+import { startTransaction, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost, startReadTitle, broadcastResetDatabases} from '../services/internal.service.js'; 
 
 export const readTitle = async (req, res) => {
   const { id } = req.params;
+  // optional
+  const { startYear } = req.query; 
 
   try {
-    const localData = await titleService.findById(id);
-    if (localData) {
-      console.log(`[READ] Found ${id} locally`);
-      return res.status(200).json(localData);
-    }
+    const titleData = await startReadTitle(id, startYear);
 
-    const peerData = await broadcastReadRow(id);
-
-    if (peerData) {
-      return res.status(200).json(peerData);
+    if (titleData) {
+      return res.status(200).json(titleData);
     }
 
     return res.status(404).json({ error: "Title not found on any node" });
   } catch (err) {
+    console.error("Read Error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -36,9 +33,7 @@ export const readTitleAll = async (req, res) => {
       const hostURL = getHostNodeUrl();
 
       if (hostURL) {
-        console.log("HOST WAS FOUND")
         const peerTitles = await aggregateAllTitlesFromPeers(hostURL);
-        console.log("done agg")
 
         const combined = localTitles.concat(peerTitles);
 
@@ -49,9 +44,6 @@ export const readTitleAll = async (req, res) => {
         });
 
         finalTitles = Object.values(uniqueTitles);
-
-        console.log("final Titles");
-        console.log(finalTitles);
       }
     }
 
@@ -98,14 +90,16 @@ export const createTitle = async (req, res) => {
     if (result.success) {
       return res.status(201).json({ 
         message: 'Title created successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // 2PC Failure (Vote NO or Abort)
       console.error("Transaction failed:", result.error);
       return res.status(409).json({ 
         error: 'Create failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 
@@ -132,13 +126,15 @@ export const updateTitle = async (req, res) => {
     if (result.success) {
       return res.status(200).json({ 
         message: 'Title updated successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // If 2PC failed (Abort or Voted No)
       return res.status(409).json({ 
         error: 'Update failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 
@@ -164,13 +160,15 @@ export const deleteTitle = async (req, res) => {
     if (result.success) {
       return res.status(200).json({ 
         message: 'Title updated successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // If 2PC failed (Abort or Voted No)
       return res.status(409).json({ 
         error: 'Update failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 
@@ -178,4 +176,34 @@ export const deleteTitle = async (req, res) => {
     console.error(err);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
+}
+
+export async function resetDatabases(req, res) {
+    try {
+        const resultPeers = await broadcastResetDatabases();
+
+        res.status(200).json(resultPeers);
+    } catch (error) {
+        console.error('Error in deleteRowByIDInNode controller: ', error);
+        
+        res.status(500).json({
+            message: "Transaction failed",
+            error: error.message
+        });
+    }
+}
+
+export async function internalResetDatabases(req, res) {
+    try {
+        const result = await titleService.resetDatabases();
+
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('Error in deleteRowByIDInNode controller: ', error);
+        
+        res.status(500).json({
+            message: "Transaction failed",
+            error: error.message
+        });
+    }
 }
