@@ -4,7 +4,6 @@ import * as titleBasicsCrudController from '../controllers/title_basics_crud.con
 const router = Router();
 
 // Helper Functions
-router.delete('/internal/resetDatabases', titleBasicsCrudController.internalResetDatabases)
 router.delete('/resetDatabases', titleBasicsCrudController.resetDatabases);
 
 // CRUD

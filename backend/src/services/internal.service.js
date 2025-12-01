@@ -167,6 +167,7 @@ export const startTransaction = async (payload) => {
     
     await Promise.all(abortPromises);
     
+    walServices.writeLog(transactionId, payload.action, "ABORT", {error: " Coordinator Exception "})
     return { success: false, error: "Transaction Aborted" };
   }
 }
@@ -277,19 +278,43 @@ export const performRecovery = async () => {
   let recoveryCount = 0;
 
   for (const [transactionId, data] of transactions) {
-    const { lastStatus, action } = data; 
+    const { lastStatus, action, payload } = data; 
 
-    if (lastStatus !== 'COMMIT' || lastStatus !== 'ABORT') { // this will get rolled back
+    // Options for last status:
+    // Prepare
+    // Ready
+    // Commit/Abort
+
+    if (lastStatus === 'PREPARE') { // abort abort abort
       console.warn(`[RECOVERY] Found orphaned transaction ${transactionId} (Action: ${action}). Rolling back.`);
 
       walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery' });
+      // undoTransaction
       recoveryCount++;
+    } else if (lastStatus === 'READY') { // unsure, so check other nodes
+      console.warn(`[RECOVERY] Found orphaned transaction ${transactionId}. Checking other nodes' status...`)
+      const decision = await walServices.askPeersForDecision(transactionId, PEER_NODES);
+      
+      // console.log(decision);
+      if (decision === 'COMMIT') {
+        console.log(`[RECOVERY] Peers say COMMIT. Committing ${transactionId}`);
+        walServices.writeLog(transactionId, action, "COMMIT", { reason: 'Crash Recovery '});
+        // Redo transaction!
+      } else {
+        console.log(`[RECOVERY] At least 1 ABORTED. Aborting ${transactionId}`);
+        walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery '})
+      }
+    } else if (lastStatus === 'COMMIT') { // redo transaction if it is a commit
+      // Don't do anything muna
+    } else {
+      console.warn(`[RECOVERY] Found aborted transaction ${transactionId} (Action: ${action}). Rolling back.`);
+      // DOn't do anything muna
     }
+  }
 
-    if (recoveryCount > 0) {
-      console.log(`[WAL] Recovery complete, Rolled back ${recoveryCount} unfinished transactions`);
-    } else{
-      console.log(`[WAL] No unfinished transactions found`);
-    }
+  if (recoveryCount > 0) {
+    console.log(`[WAL] Recovery complete, Rolled back ${recoveryCount} unfinished transactions`);
+  } else {
+    console.log(`[WAL] No unfinished transactions found`);
   }
 }

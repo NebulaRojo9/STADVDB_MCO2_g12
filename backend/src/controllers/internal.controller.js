@@ -1,8 +1,5 @@
 import * as internalService from '../services/internal.service.js';
-
-export const clientRequest = async (req, res) => {
-
-}
+import { getTransactionLog } from '../services/wal.service.js';
 
 export async function receivePrepare(req, res) {
   try {
@@ -36,5 +33,33 @@ export async function receiveAbort(req, res) {
   } catch (error) {
     console.error("RECEIVE ABORT ERROR: ", error)
     res.status(500).json({ status: 'FAILED TO ABORT', error: error.message });
+  }
+}
+
+export const checkTransactionStatus = async (req, res) => {
+  // console.log("skibidy")
+  const { id } = req.params;
+
+  console.log(`[DEBUG] Searching logs for ID: '${id}'`);
+
+  // Read local logs
+  const history = await getTransactionLog(id)
+
+  if (!history) {
+    // Perhaps crashed before other codes could run prepare
+    return res.json({ status: 'UNKNOWN' })
+  }
+
+  const lastState = history.lastStatus;
+  return res.json({ status: lastState, details: history })
+}
+
+export async function checkLastLog(req, res) {
+  try {
+    const lastLog = await internalService.getLastLogEntry();
+    res.status(200).json(lastLog);
+  } catch (error) {
+    console.error("CHECK LAST LOG ERROR: ", error);
+    res.status(500).json({ status: 'FAILED TO CHECK LAST LOG', error: error.message })
   }
 }

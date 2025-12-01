@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
+import axios from 'axios';
 
 const LOG_DIR = path.resolve('logs');
 
@@ -28,6 +29,90 @@ export const writeLog = (transactionId, action, status, payload = {}) => {
         console.error("Failed to write WAL", err);
         throw err;
     }
+}
+
+export const askPeersForDecision = async (transactionId, PEER_NODES) => {
+    let peersCommitted = false;
+
+    for (const peerUrl of PEER_NODES) {
+        try {
+            const history = await getTransactionLog(transactionId);
+            console.log("History skibidy!!!");
+            console.log(history)
+            const response = await axios.post(`${peerUrl}/internal/checkStatus/${transactionId}`)
+            const peerStatus = response.data.status;
+            console.log(peerUrl)
+            console.log("peerStatus: ", peerStatus)
+
+            if (peerStatus === 'COMMIT') peersCommitted = true;
+        } catch (error) {
+            console.error(`Failed to contact peer ${peerUrl}`);
+        }
+    }
+
+    if (peersCommitted) return 'COMMIT'
+    else return 'ABORT';
+}
+
+export const getTransactionLog = async (targetId) => {
+    if (!fs.existsSync(LOG_FILE)) return null;
+
+    const fileStream = fs.createReadStream(LOG_FILE);
+    const rl = readline.createInterface({ // what is this?
+        input: fileStream,
+        crlfDelay: Infinity
+    });
+
+    let transaction = null;
+
+    for await (const line of rl) {
+        if (!line.trim()) continue;
+
+        // Parse line
+        let [timestamp, transactionId, action, status, payloadStr] = line.split('|');
+        
+        let transactionIdCleaned = transactionId ? transactionId.trim() : '';
+
+        /* console.log("transactionIdCleaned:", transactionIdCleaned)
+        console.log("targetId", targetId); */
+        if (transactionIdCleaned !== targetId) {
+            continue;
+        }
+
+        try {
+            // Initialize the object if it's the first log we've found for this ID
+            if (!transaction) {
+                transaction = { 
+                    transactionId,
+                    action: action, 
+                    history: [],
+                    payload: {},
+                    lastStatus: null 
+                };
+            }
+
+            // Add to history trace
+            transaction.history.push({ status, timestamp });
+            
+            // Always update the latest status
+            transaction.lastStatus = status;
+
+            // Only overwrite 'action' if the current log has a valid one (not UNKNOWN)
+            if (action && action !== 'UNKNOWN') {
+                transaction.action = action;
+            }
+
+            // Only overwrite 'payload' if the current log has keys (don't overwrite data with empty commit payload)
+            const currentPayload = JSON.parse(payloadStr || '{}');
+            if (Object.keys(currentPayload).length > 0) {
+                transaction.payload = currentPayload;
+            }
+        } catch (error) {
+            console.error(`Corrupt log line: ${line}`, error);
+        }
+    }
+
+    return transaction;
 }
 
 export const recoverFromLogs = async () => {
@@ -69,4 +154,12 @@ export const recoverFromLogs = async () => {
     }
 
     return transactions;
+}
+
+export const undo = async (transactionId) => {
+
+}
+
+export const redo = async (transactionId) => {
+
 }
