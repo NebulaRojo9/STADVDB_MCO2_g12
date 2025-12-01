@@ -4,6 +4,7 @@ import 'dotenv/config';
 
 const MAX_RETRIES = 5;
 let pool = null;
+
 [
   'DB_HOST',
   'DB_USER',
@@ -25,10 +26,8 @@ async function connectWithRetry(pool) {
     try {
       // Attempt to get a connection to test connectivity
       const connection = await pool.getConnection();
-      console.log(
-        `✅ Pool connected successfully to database: ${process.env.DB_DATABASE}`,
-      );
-      connection.release(); // Release the test connection
+      console.log(`✅ Pool connected successfully to database: ${process.env.DB_DATABASE}`);
+      connection.release();
       connected = true;
     } catch (error) {
       lastError = error;
@@ -37,23 +36,37 @@ async function connectWithRetry(pool) {
       if (retries > 0) {
         // Exponential backoff calculation: 2^(MAX_RETRIES - currentRetries) * 1000ms
         const delay = Math.pow(2, MAX_RETRIES - retries) * 1000;
-        console.log(
-          `Pool failed to connect. Retrying in ${delay / 1000}s... (${retries} attempts left)`,
-        );
+        console.log(`Pool failed to connect. Retrying in ${delay / 1000}s... (${retries} attempts left)`);
         await sleep(delay);
       }
     }
   }
 
   if (!connected) {
-    console.error(`\n❌ Failed to connect Pool after multiple attempts:`, lastError);
-    // Throw the error to stop the initialization process
+    console.error(`❌ Failed to connect Pool after multiple attempts:`, lastError);
     throw lastError;
   }
 }
 
+function startKeepAlive() {
+  setInterval(async () => {
+    if (!pool) return;
+
+    try {
+      await pool.query('SELECT 1');
+      console.log("Keepalive OK");
+    } catch (error) {
+      console.error("Keepalive failed:", error);
+      console.log("Reinitializing DB pool...");
+
+      await closeDB();
+      await initDB();
+    }
+  }, 30000);
+}
+
 export const initDB = async () => {
-  if (pool) return; // Existing pool is returned if exists
+  if (pool) return;
 
   console.log('Initializing database connection pool...');
 
@@ -67,23 +80,22 @@ export const initDB = async () => {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    enableKeepAlive: true, // Pings DB to keep connection open
+    enableKeepAlive: true,
     keepAliveInitialDelay: 0,
   });
 
   try {
     await connectWithRetry(pool);
+    startKeepAlive();
     console.log('DB Pool initialized successfully.');
   } catch (error) {
     console.error('Database initialization failed. Shutting down active pools.');
     await closeDB();
-    throw error; // Rethrow the error after cleanup
+    throw error;
   }
 };
 
-export const getDB = async () => {
-  return pool;
-};
+export const getDB = async () => pool;
 
 export const closeDB = async () => {
   if (pool) {

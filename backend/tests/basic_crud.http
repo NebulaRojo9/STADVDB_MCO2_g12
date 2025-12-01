@@ -15,7 +15,7 @@ Content-Type: application/json
 }
 
 ### READ a single title by ID
-GET http://localhost:3001/title-basics/read/tt1234567
+GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025
 
 ### READ ALL titles
 GET http://localhost:3000/title-basics/readAll
@@ -24,7 +24,7 @@ GET http://localhost:3000/title-basics/readAll
 GET http://localhost:3000/title-basics/readAllFromNode
 
 ### UPDATE a title by ID
-PUT http://localhost:3000/title-basics/update/tt1234567
+PUT http://localhost:3000/title-basics/update/tt1234569
 Content-Type: application/json
 
 {
@@ -39,4 +39,4 @@ Content-Type: application/json
 }
 
 ### DELETE a title by ID
-DELETE http://localhost:3000/title-basics/delete/tt1234567
+DELETE http://localhost:3000/title-basics/delete/tt1234569?startYear=2025

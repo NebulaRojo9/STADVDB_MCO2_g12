@@ -2,26 +2,23 @@
 
 // IMPORT THE SERVICE, NOT THE CONTROLLER
 import * as titleService from '../services/title_basics_crud.services.js';
-import { startTransaction, broadcastReadRow, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost, broadcastResetDatabases} from '../services/internal.service.js'; 
+import { startTransaction, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost, startReadTitle, broadcastResetDatabases} from '../services/internal.service.js'; 
 
 export const readTitle = async (req, res) => {
   const { id } = req.params;
+  // optional
+  const { startYear } = req.query; 
 
   try {
-    const localData = await titleService.findById(id);
-    if (localData) {
-      console.log(`[READ] Found ${id} locally`);
-      return res.status(200).json(localData);
-    }
+    const titleData = await startReadTitle(id, startYear);
 
-    const peerData = await broadcastReadRow(id);
-
-    if (peerData) {
-      return res.status(200).json(peerData);
+    if (titleData) {
+      return res.status(200).json(titleData);
     }
 
     return res.status(404).json({ error: "Title not found on any node" });
   } catch (err) {
+    console.error("Read Error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -93,14 +90,16 @@ export const createTitle = async (req, res) => {
     if (result.success) {
       return res.status(201).json({ 
         message: 'Title created successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // 2PC Failure (Vote NO or Abort)
       console.error("Transaction failed:", result.error);
       return res.status(409).json({ 
         error: 'Create failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 
@@ -127,13 +126,15 @@ export const updateTitle = async (req, res) => {
     if (result.success) {
       return res.status(200).json({ 
         message: 'Title updated successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // If 2PC failed (Abort or Voted No)
       return res.status(409).json({ 
         error: 'Update failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 
@@ -159,13 +160,15 @@ export const deleteTitle = async (req, res) => {
     if (result.success) {
       return res.status(200).json({ 
         message: 'Title updated successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // If 2PC failed (Abort or Voted No)
       return res.status(409).json({ 
         error: 'Update failed via Distributed Consensus', 
-        details: result.error 
+        details: result.error,
+        processTrace: result.processTrace
       });
     }
 

@@ -5,6 +5,7 @@ import { registry } from './crud_registry.js'
 import * as walServices from './wal.service.js'
 import 'dotenv/config';
 import { setTimeout as sleep } from 'timers/promises';
+import { createTrace } from '../utils/trace.js';
 
 const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 
@@ -17,27 +18,6 @@ export const getHostNodeUrl = () => {
 
 export const isHost = () => {
   return process.env.PORT === '3000'
-}
-
-export const broadcastReadRow = async (id) => {
-  console.log(`[READ] Broadcasting read request for ${id} to peers`);
-
-  for (const peerUrl of PEER_NODES) {
-    try {
-      const response = await axios.get(`${peerUrl}/title-basics/read/${id}`)
-
-      if (response.status === 200) {
-        console.log(`[READ] Found ${id} on peer ${peerUrl}`);
-        return response.data
-      }
-    } catch (err) {
-      if (err.response && err.response.status !== 404) {
-        console.error(`[READ] Peer ${peerUrl} error:`, err.message)
-      }
-    }
-  }
-
-  return null;
 }
 
 export const aggregateAllTitlesFromPeers = async (hostURL) => {
@@ -69,8 +49,41 @@ export const broadcastResetDatabases = async () => {
       }
     }
   }
-
   return null;
+}
+
+export const startReadTitle = async (id, startYear = undefined) => {
+  // No start year specified for read title, but if it is we can skip this part
+  if (!startYear) {
+    // Check self if record exists
+    const localResult = await startTransaction({
+      action: 'READ_TITLE',
+      id: id,
+      startYear: startYear 
+    }, true); 
+
+    if (localResult.success && localResult.data) {
+      console.log(`[READ] Found locally on ${process.env.PORT}`);
+      return localResult.data;
+    }
+  }
+  // Broadcast to Everyone (or specific node if startYear known)
+  const payload = {
+    action: 'READ_TITLE',
+    id: id,
+    startYear: startYear
+  };
+
+  const result = await startTransaction(payload);
+  
+  if (!result.success) {
+    if (result.message === "Transaction Committed" && !result.data) {
+       return null;
+    }
+    throw new Error(`Read failed: ${result.error || result.message}`);
+  }
+
+  return result.data;
 }
 
 /**
@@ -82,48 +95,76 @@ export const broadcastResetDatabases = async () => {
  *  data: req.body
  * }
  */
-export const startTransaction = async (payload) => {
+export const startTransaction = async (payload, isLocal = false) => {
   const transactionId = uuidv4();
   const timestamp = Date.now();
-  console.log("Starting transaction:", transactionId);
+  const processTrace = createTrace()
 
   // FRAGMENTATION LOGIC
   let targetNodes = PEER_NODES;
   // if current node will also commit
   let isParticipant = true;
-  // Dont go to node B
-  if (payload.startYear >= 2000) {
-    targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3001'));
-    if (process.env.PORT == '3001') {
-      isParticipant = false;
+
+  // if local run only
+  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} started`)
+  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} started`)
+  if (isLocal) {
+    targetNodes = []
+    isParticipant = true;
+  }
+  // only selects target nodes if we specify a year (CREATE UPDATE DELETE), else broadcast (READ)
+  else if (payload.startYear !== undefined && payload.startYear !== null) {
+    processTrace.log(`[TM] Tx ${transactionId} specified a year: ${payload.startYear}`)
+    console.log(`[TM] Tx ${transactionId} specified a year: ${payload.startYear}`)
+    // Dont go to node B
+    if (payload.startYear >= 2000) {
+      targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3001'));
+      if (process.env.PORT == '3001') {
+        isParticipant = false;
+      }
+    } else if (payload.startYear < 2000) { // Dont go to node C
+      targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3002'));
+      if (process.env.PORT == '3002') {
+        isParticipant = false;
+      }
     }
-  } else if (payload.startYear < 2000) { // Dont go to node C
-    targetNodes = PEER_NODES.filter(nodeURL => !nodeURL.includes('3002'));
-    if (process.env.PORT == '3002') {
-      isParticipant = false;
+    // No peers and not a participant
+    if (targetNodes.length === 0 && !isParticipant) {
+        return { success: false, message: "No nodes available for this shard key" };
     }
   }
-  // No peers and not a participant
-  if (targetNodes.length === 0 && !isParticipant) {
-      return { success: false, message: "No nodes available for this shard key" };
-  }
+
+  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending to peers ${targetNodes}`)
+  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending to peers ${targetNodes}`)
 
   walServices.writeLog(transactionId, payload.action, "PREPARE", payload);
 
   // REPLICATION LOGIC
 
   try {
-    const preparePromises = targetNodes.map(nodeURL =>
-      axios.post(`${nodeURL}/internal/prepare`, { transactionId, timestamp, data: payload })
-        .then(res => res.data)  // get data of response ("YES"|"NO")
-    );
+    const preparePromises = targetNodes.map(nodeURL => {
+      processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [PREPARE] to peer ${nodeURL}`)
+      console.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [PREPARE] to peer ${nodeURL}`)
+      return axios.post(`${nodeURL}/internal/prepare`, { transactionId, timestamp, data: payload })
+        .then(res => {
+          if (res.data.processTrace && Array.isArray(res.data.processTrace)) {
+            processTrace.get().push(...res.data.processTrace);
+          }
+          return res.data
+        })  // get data of response ("YES"|"NO")
+    });
 
     // Inject local operation
 
     if (isParticipant) {
-      preparePromises.push(
-        handlePrepare(transactionId, timestamp, payload)
-      )
+      processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} calling [PREPARE] to self ${process.env.PORT}`)
+      const localPromise = handlePrepare(transactionId, timestamp, payload)
+      .then(res => {
+          if (res.processTrace) processTrace.get().push(...res.processTrace);
+          return res;
+      });
+      preparePromises.push(localPromise)
+      console.log(`[TM:${process.env.PORT}] Tx ${transactionId} calling [PREPARE] to self ${process.env.PORT}`)
     }
 
     // Phase 1: Obtaining a Decision
@@ -139,56 +180,91 @@ export const startTransaction = async (payload) => {
 
     walServices.writeLog(transactionId, payload.action, "COMMIT", payload);
 
-
-    const commitPromises = targetNodes.map(nodeURL =>
-      axios.post(`${nodeURL}/internal/commit`, { transactionId })
-    );
+    const commitPromises = targetNodes.map(nodeURL => {
+      processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [COMMIT] to peer ${nodeURL}`)
+      console.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [COMMIT] to peer ${nodeURL}`)
+      return axios.post(`${nodeURL}/internal/commit`, { transactionId }).then(res => {
+        if (res.data.processTrace && Array.isArray(res.data.processTrace)) {
+          processTrace.get().push(...res.data.processTrace);
+        }
+        return res.data
+      })
+    });
 
     if (isParticipant) {
-      commitPromises.push(handleCommit(transactionId))
+      processTrace.log(`[TM:${process.env.PORT}] Calling COMMIT on self`);
+      const localPromise = handleCommit(transactionId)
+        .then(res => {
+          if (res.processTrace) processTrace.get().push(...res.processTrace);
+          return res;
+        });
+      commitPromises.push(localPromise);
     }
 
-    await Promise.all(commitPromises);
-    console.log("Transaction committed successfully:", transactionId);
-    return { success: true, transactionId, message: "Replicated to all nodes" };
-  } catch (error) {
-    console.error("Error during transaction, aborting:", transactionId, error.message);
+    const commitResults = await Promise.all(commitPromises);
+    const resultData = commitResults
+      .map(res => res.data) // extract data from axios response
+      .find(data => data !== null && data !== undefined);
     
-    const abortPromises = targetNodes.map(nodeURL => 
-      axios.post(`${nodeURL}/internal/abort`, { transactionId })
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} committed successfully`)
+    console.log(`[TM:${process.env.PORT}] Tx ${transactionId} committed successfully`)
+    return { success: true, transactionId, data: resultData, message: "Replicated to all nodes", processTrace: processTrace.get()};
+  } catch (error) {
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} error occured: ${error.message}`)
+    console.log(`[TM:${process.env.PORT}] Tx ${transactionId} error occured: ${error.message}`)
+    
+    const abortPromises = targetNodes.map(nodeURL => {
+      processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [ABORT] to peer ${nodeURL}`)
+      console.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [ABORT] to peer ${nodeURL}`)
+      return axios.post(`${nodeURL}/internal/abort`, { transactionId })
         .catch(err => console.error(`Failed to abort on ${nodeURL}`, err.message))
+    }
     );
 
     if (isParticipant) {
-      abortPromises.push(
-        handleAbort(transactionId).catch(e => console.error("Local abort failed", e))
-      )
+      abortPromises.push(handleAbort(transactionId).catch(e => console.error("Local abort failed", e)))
+      processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [ABORT] to self ${process.env.PORT}`)
+      console.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending [ABORT] to self ${process.env.PORT}`)
     }
     
     await Promise.all(abortPromises);
     
     walServices.writeLog(transactionId, payload.action, "ABORT", {error: " Coordinator Exception "})
-    return { success: false, error: "Transaction Aborted" };
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} aborted successfully`)
+    console.log(`[TM:${process.env.PORT}] Tx ${transactionId} aborted successfully`)
+    return { success: false, error: "Transaction Aborted", processTrace: processTrace.get() };
   }
 }
 
 // 1st PHASE (VOTING)
-export const handlePrepare = async (transactionId, timestamp, payload) => {  
+export const handlePrepare = async (transactionId, timestamp, payload) => {
+  const processTrace = createTrace();
+  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [PREPARE]`)
+  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [PREPARE]`)
+
   if (committedHistory.has(transactionId)) {
-    return { vote: "YES" };
+    return { vote: "YES", processTrace: processTrace.get() };
   }
 
   const handler = registry[payload.action]
-  if (!handler) throw new Error(`Unknown action type: ${payload.action}`);
+  if (!handler) {
+    console.error(`Unknown action type: ${payload.action}`);
+    processTrace.log(`Unknown action type: ${payload.action}`);
+    return { vote: "NO"};
+  }
 
   const resourceId = `tx-${payload.id}`;
 
+  const lockType = handler.lockType || 'EXCLUSIVE';
+
   try {
-    await lockManager.acquire(resourceId, transactionId, 'EXCLUSIVE', timestamp);
-    console.log("Lock acquired for transaction: ", transactionId);
+    await lockManager.acquire(resourceId, transactionId, lockType, timestamp);
+    processTrace.log(`[LM:${process.env.PORT}] Tx ${transactionId} lock acquired`)
+    console.log(`[LM:${process.env.PORT}] Tx ${transactionId} lock acquired`)
   } catch (error) {
-    console.error(`[${transactionId}] Vote: NO (Lock Acquisition Failed)`, error.message);
-    throw new Error(`CANNOT ACQUIRE LOCK: ${error.message}` );
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Lock Acquisition Failed)`, error.message);
+    console.error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Lock Acquisition Failed)`, error.message);
+    return { vote: "NO", processTrace: processTrace.get()}
   }
   try {
     walServices.writeLog(transactionId, payload.action, "READY", payload); // site promises it can commit if asked
@@ -196,44 +272,50 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
     await handler.validate(payload);
 
     pendingTransactions.set(transactionId, {payload, resourceId, timestamp});
-    console.log(`[${transactionId}] PORT[${process.env.PORT}] Vote: YES (Lock Acquired)`);
-    console.log("HEREEE");
-    return { vote: 'YES' };
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: YES (Lock Acquired)`);
+    console.error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: YES (Lock Acquired)`);
+
+    return { vote: 'YES', processTrace: processTrace.get() };
   } catch (error) {
     // Recovery???
     walServices.writeLog(transactionId, payload.action, "ABORT", { error: error.message })
     lockManager.release(resourceId, transactionId)
-    console.error(`[${transactionId}] PORT[${process.env.PORT}] Vote: NO (Validation Failed)`, error.message);
-    throw new Error(`VALIDATION FAILED: ${error.message}`);
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
+    console.error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
+    return { vote: "NO", processTrace: processTrace.get() }
   }
 }
 
 // 2nd PHASE (DECISION MAKING)
 // TODO: ADD CHECK FOR MULTIPLE CALLS
 export const handleCommit = async (transactionId) => {
-  console.log("Commit request for: ", transactionId);
   walServices.writeLog(transactionId, "UNKNOWN", "COMMIT", {});
+  const processTrace = createTrace();
+  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
+  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
+
 
   if (committedHistory.has(transactionId)) {
-    return { status: 'COMMITTED_ALREADY' };
+    return { status: 'COMMITTED_ALREADY', processTrace: processTrace.get()};
   }
 
   const txState = pendingTransactions.get(transactionId);
   if (!txState) {
-    throw new Error(`No pending transaction found for ID: ${transactionId}`);
+    processTrace.log(`No pending transaction found for ID: ${transactionId}`);
+    console.error(`No pending transaction found for ID: ${transactionId}`);
+    return { status: "ERROR", processTrace: processTrace.get()}
   }
   const { payload, resourceId } = txState;
   try {
     const stillLocked = lockManager.isLockedBy(resourceId, transactionId);
     if (!stillLocked) {
-      throw new Error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
-    } //
-
-    // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
-    // Middleware for enrichment (appending path as metadata)
+      processTrace.log(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
+      console.error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
+      return { status: "ERROR", processTrace: processTrace.get()}
+    }
 
     const handler = registry[payload.action]
-    await handler.execute(payload)
+    const result = await handler.execute(payload)
     
     // Clean up
     setTimeout(() => {
@@ -241,34 +323,41 @@ export const handleCommit = async (transactionId) => {
     }, 10 * 60 * 1000); // 600,000 ms
 
     committedHistory.add(transactionId);
-    console.log("Transaction committed: ", transactionId);
-    return { status: 'COMMITTED' };
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} committed successfully`)
+    console.log(`[TM:${process.env.PORT}] Tx ${transactionId} committed successfully`)
+    return { status: 'COMMITTED', data: result, processTrace: processTrace.get()};
   } catch (e) {
-    console.error(`[${transactionId}] Commit Failed`, e.message);
-    throw e; // Coordinator needs to know
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} commit failed`, e.message)
+    console.error(`[TM:${process.env.PORT}] Tx ${transactionId} commit failed`, e.message)
+    return { status: 'ERROR', processTrace: processTrace.get()};
   } finally {
     if (txState && txState.resourceId) {
       await lockManager.release(txState.resourceId, transactionId);
-      console.log("Lock released for transaction: ", transactionId);
+      processTrace.log(`[LM:${process.env.PORT}] Tx ${transactionId} lock released`)
+      console.log(`[LM:${process.env.PORT}] Tx ${transactionId} lock released`)
     }
     pendingTransactions.delete(transactionId);
   }
 }
 
 export const handleAbort = async (transactionId) => {
-  console.log("Abort request for: ", transactionId);
   walServices.writeLog(transactionId, 'UNKNOWN', 'ABORT', {});
+  const processTrace = createTrace();
+  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
+  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
 
-  const transactionState = pendingTransactions.get(transactionId);
-  
-  if (transactionState && transactionState.resourceId) {
-    await lockManager.release(transactionState.resourceId, transactionId);
-    console.log("Lock released for transaction: ", transactionId);
+  const txState = pendingTransactions.get(transactionId);
+
+  if (txState && txState.resourceId) {
+    await lockManager.release(txState.resourceId, transactionId);
+    processTrace.log(`[LM:${process.env.PORT}] Tx ${transactionId} lock released`)
+    console.log(`[LM:${process.env.PORT}] Tx ${transactionId} lock released`)
   }
 
   pendingTransactions.delete(transactionId);
-  console.log("Transaction aborted: ", transactionId);
-  return { status: 'ABORTED' };
+  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} aborted successfully`)
+  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} aborted successfully`)
+  return { status: 'ABORTED', processTrace: processTrace.get() };
 }
 
 export const performRecovery = async () => {

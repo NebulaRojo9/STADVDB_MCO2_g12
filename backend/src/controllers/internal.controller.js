@@ -3,36 +3,50 @@ import { getTransactionLog } from '../services/wal.service.js';
 
 export async function receivePrepare(req, res) {
   try {
-    const {transactionId, timestamp, data } = req.body
+    const { transactionId, timestamp, data } = req.body;
     if (!transactionId || !timestamp || !data) {
-      console.error("Missing 2PC headers:", req.body);
-      return res.status(400).json({ vote: 'NO', error: "Missing transaction headers" });
+      return res
+        .status(400)
+        .json({
+          vote: 'NO',
+          error: 'Missing transaction headers',
+          processTrace: processTrace.get(),
+        });
     }
-    await internalService.handlePrepare(transactionId, timestamp, data);
-    res.status(200).json({ vote: 'YES' });
+    const result = await internalService.handlePrepare(transactionId, timestamp, data);
+    res.status(200).json(result);
   } catch (error) {
-    console.error("RECEIVE PREPARE ERROR: ", error)
-    res.status(500).json({ vote: 'NO', error: error.message });
+    console.error("RECEIVE PREPARE CRITICAL ERROR: ", error);
+    res.status(500).json({ 
+      vote: 'NO', 
+      error: `Internal Node Crash: ${error.message}` 
+    });
   }
 }
 
 export async function receiveCommit(req, res) {
   try {
-    await internalService.handleCommit(req.body.transactionId);
-    res.status(200).json({ status: 'COMMITTED' });
+    const result = await internalService.handleCommit(req.body.transactionId);
+    res.status(200).json(result);
   } catch (error) {
-    console.error("RECEIVE COMMIT ERROR: ", error)
-    res.status(500).json({ status: 'FAILED TO COMMIT', error: error.message });
+    console.error('RECEIVE COMMIT ERROR: ', error);
+    res.status(500).json({
+      status: 'ERROR',
+      error: error.message
+    });
   }
 }
 
 export async function receiveAbort(req, res) {
   try {
-    await internalService.handleAbort(req.body.transactionId);
-    res.status(200).json({ status: 'ABORTED' });
+    result = await internalService.handleAbort(req.body.transactionId);
+    res.status(200).json(result);
   } catch (error) {
-    console.error("RECEIVE ABORT ERROR: ", error)
-    res.status(500).json({ status: 'FAILED TO ABORT', error: error.message });
+    console.error('RECEIVE ABORT ERROR: ', error);
+    res.status(500).json({
+      status: 'FAILED TO ABORT',
+      error: error.message
+    });
   }
 }
 
