@@ -1,10 +1,40 @@
 // controllers/title_basics.controller.js
 
 // IMPORT THE SERVICE, NOT THE CONTROLLER
-import { startTransaction } from '../services/internal.service.js'; 
+import * as titleService from '../services/title_basics_crud.services.js';
+import { startTransaction, broadcastRead } from '../services/internal.service.js'; 
 
 export const readTitle = async (req, res) => {
+  const { id } = req.params;
 
+  try {
+    const localData = await titleService.findById(id);
+    if (localData) {
+      console.log(`[READ] Found ${id} locally`);
+      return res.status(200).json(localData);
+    }
+
+    const peerData = await broadcastRead(id);
+
+    if (peerData) {
+      return res.status(200).json(peerData);
+    }
+
+    return res.status(404).json({ error: "Title not found on any node" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+export const readTitleAll = async (req, res) => {
+  try {
+    const titles = await titleService.findAllFromNode();
+
+    return res.status(200).json(titles);
+  } catch (err) {
+    console.error("Controller Error:". err)
+    return res.status(500).json({ error: 'Internal Server Error' })
+  }
 }
 
 export const createTitle = async (req, res) => {

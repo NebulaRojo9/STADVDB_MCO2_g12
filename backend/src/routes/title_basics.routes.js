@@ -22,7 +22,9 @@ router.post('/:vmid/routeCreate', titleBasicsController.routeCreateToNode);
 router.put('/:vmid/routeUpdate/:id/:startYear', titleBasicsController.routeUpdateToNode);
 router.delete('/:vmid/routeDelete/:id/:startYear', titleBasicsController.routeDeleteRowFromNode);
 
-router.post('/create', titleBasicsCrudController.createTitle)
-router.put('/update/:id', titleBasicsCrudController.updateTitle)
+router.get('/read/:id', titleBasicsCrudController.readTitle);
+router.get('/readAll', titleBasicsCrudController.readTitleAll);
+router.post('/create', titleBasicsCrudController.createTitle);
+router.put('/update/:id', titleBasicsCrudController.updateTitle);
 router.delete('/delete/:id', titleBasicsCrudController.deleteTitle);
 export default router;

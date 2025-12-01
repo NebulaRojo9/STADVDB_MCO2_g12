@@ -9,6 +9,27 @@ const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 const pendingTransactions = new Map();
 const committedHistory = new Set();
 
+export const broadcastRead = async (id) => {
+  console.log(`[READ] Broadcasting read request for ${id} to peers`);
+
+  for (const peerUrl of PEER_NODES) {
+    try {
+      const response = await axios.get(`${peerUrl}/title-basics/read/${id}`)
+
+      if (response.status === 200) {
+        console.log(`[READ] Found ${id} on peer ${peerUrl}`);
+        return response.data
+      }
+    } catch (err) {
+      if (err.response && err.response.status !== 404) {
+        console.error(`[READ] Peer ${peerUrl} error:`, err.message)
+      }
+    }
+  }
+
+  return null;
+}
+
 /**
  * 
  * @param {*} payload 

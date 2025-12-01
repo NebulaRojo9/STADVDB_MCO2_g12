@@ -1,5 +1,6 @@
 import { getDB } from '../config/connect.js'
 
+// Has to be fixed for reading data from node 2 that belongs in node 3 (i.e. need to access node 1 pa)
 export async function findById(id) {
   const pool = await getDB(); // Ensure we await the connection
 
@@ -8,10 +9,18 @@ export async function findById(id) {
     [id]
   );
 
-  if (rows.length === 0) {
-    throw new Error(`Title ${id} does not exist`);
-  }
-  return rows[0];
+  return rows.length > 0 ? rows[0] : null;
+}
+
+// NOTE: This has to be fixed for reading from other nodes as well (if ur reading in the context of 2 and 3)
+export async function findAllFromNode() {
+  const pool = await getDB(); // Ensure we await the connection
+
+  const [rows] = await pool.query(
+    'SELECT * FROM title_basics'
+  );
+
+  return rows;
 }
 
 export async function canBeCreated(data) {
