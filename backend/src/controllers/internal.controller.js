@@ -39,7 +39,7 @@ export async function receiveCommit(req, res) {
 
 export async function receiveAbort(req, res) {
   try {
-    result = await internalService.handleAbort(req.body.transactionId);
+    const result = await internalService.handleAbort(req.body.transactionId);
     res.status(200).json(result);
   } catch (error) {
     console.error('RECEIVE ABORT ERROR: ', error);
