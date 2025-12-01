@@ -2,6 +2,7 @@ import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import lockManager from './lock_manager.js';
 import { registry } from './crud_registry.js'
+import * as walServices from './wal.service.js'
 import 'dotenv/config';
 
 const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
@@ -160,12 +161,15 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
   }
   try {
     // TODO: ADD WAL
+    walServices.writeLog(transactionId, payload.action, "PREPARED", payload)
+
     await handler.validate(payload);
 
     pendingTransactions.set(transactionId, {payload, resourceId, timestamp});
     console.log(`[${transactionId}] PORT[${process.env.PORT}] Vote: YES (Lock Acquired)`);
     return { vote: 'YES' };
   } catch (error) {
+    walServices.writeLog(transactionId, payload.action, "ABORTED", { error: error.message })
     lockManager.release(resourceId, transactionId)
     console.error(`[${transactionId}] PORT[${process.env.PORT}] Vote: NO (Validation Failed)`, error.message);
     throw new Error(`VALIDATION FAILED: ${error.message}`);
@@ -194,6 +198,8 @@ export const handleCommit = async (transactionId) => {
 
     // TODO: ADD ROUTE HANDLER HERE, ASSUME PATH IS INCLUDED IN PAYLOAD
     // Middleware for enrichment (appending path as metadata)
+    walServices.writeLog(transactionId, payload.action, "COMMITTED", {})
+
     const handler = registry[payload.action]
     await handler.execute(payload)
     
@@ -219,6 +225,8 @@ export const handleCommit = async (transactionId) => {
 
 export const handleAbort = async (transactionId) => {
   console.log("Abort request for: ", transactionId);
+
+  walServices.writeLog(transactionId, 'UNKNOWN', 'ABORTED', {});
 
   const txState = pendingTransactions.get(transactionId);
   

@@ -36,9 +36,7 @@ export const readTitleAll = async (req, res) => {
       const hostURL = getHostNodeUrl();
 
       if (hostURL) {
-        console.log("HOST WAS FOUND")
         const peerTitles = await aggregateAllTitlesFromPeers(hostURL);
-        console.log("done agg")
 
         const combined = localTitles.concat(peerTitles);
 
@@ -49,9 +47,6 @@ export const readTitleAll = async (req, res) => {
         });
 
         finalTitles = Object.values(uniqueTitles);
-
-        console.log("final Titles");
-        console.log(finalTitles);
       }
     }
 

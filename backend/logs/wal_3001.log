@@ -1,0 +1,12 @@
+2025-12-01T05:59:11.024Z|6033273b-2fc1-49f0-8b96-f78f7026401d|CREATE_TITLE|PREPARED|{"action":"CREATE_TITLE","id":"tt0081505","data":{"tconst":"tt0081505","titleType":"movie","primaryTitle":"The Shining","originalTitle":"The Shining","isAdult":0,"startYear":1980,"endYear":null,"runtimeMinutes":144,"genres":"Drama, Horror"},"startYear":1980}
+2025-12-01T05:59:11.090Z|6033273b-2fc1-49f0-8b96-f78f7026401d|CREATE_TITLE|COMMITTED|{}
+2025-12-01T06:18:02.884Z|df722f88-f5c0-4604-9079-930fe01c8ebe|CREATE_TITLE|PREPARED|{"action":"CREATE_TITLE","id":"tt0110912","data":{"tconst":"tt0110912","titleType":"movie","primaryTitle":"Pulp Fiction","originalTitle":"Pulp Fiction","isAdult":0,"startYear":1994,"endYear":null,"runtimeMinutes":154,"genres":"Crime, Drama"},"startYear":1994}
+2025-12-01T06:18:02.946Z|df722f88-f5c0-4604-9079-930fe01c8ebe|CREATE_TITLE|COMMITTED|{}
+2025-12-01T06:29:10.802Z|59ea0813-0a87-4e21-bf82-fb67f28a0a5d|UPDATE_TITLE|PREPARED|{"action":"UPDATE_TITLE","id":"tt0102926","data":{"runtimeMinutes":88,"startYear":1991},"startYear":1991}
+2025-12-01T06:29:10.864Z|59ea0813-0a87-4e21-bf82-fb67f28a0a5d|UPDATE_TITLE|COMMITTED|{}
+2025-12-01T06:29:46.582Z|9628a7bc-5b8c-41f5-a900-131baf4a8e98|UPDATE_TITLE|PREPARED|{"action":"UPDATE_TITLE","id":"tt0102926","data":{"runtimeMinutes":87,"startYear":1991},"startYear":1991}
+2025-12-01T06:29:46.587Z|9628a7bc-5b8c-41f5-a900-131baf4a8e98|UNKNOWN|ABORTED|{}
+2025-12-01T06:37:39.763Z|7d7477db-668a-4e10-ad15-2cbac91b776e|DELETE_TITLE|PREPARED|{"action":"DELETE_TITLE","id":"tt0102926","startYear":1991}
+2025-12-01T06:37:39.833Z|7d7477db-668a-4e10-ad15-2cbac91b776e|DELETE_TITLE|COMMITTED|{}
+2025-12-01T06:43:12.029Z|6d07e9d4-3ed4-4906-97fd-0f2e0bb51558|DELETE_TITLE|PREPARED|{"action":"DELETE_TITLE","id":"tt1234567","startYear":1991}
+2025-12-01T06:43:12.110Z|6d07e9d4-3ed4-4906-97fd-0f2e0bb51558|DELETE_TITLE|COMMITTED|{}
