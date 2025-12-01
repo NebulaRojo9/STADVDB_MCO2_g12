@@ -138,6 +138,7 @@ export const startTransaction = async (payload, isLocal = false) => {
   console.log(`[TM:${process.env.PORT}] Tx ${transactionId} sending to peers ${targetNodes}`)
 
   walServices.writeLog(transactionId, payload.action, "PREPARE", payload);
+  console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'PREPARE', ${payload}`);
   processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'PREPARE', ${payload}`);
 
   // REPLICATION LOGIC
@@ -176,11 +177,13 @@ export const startTransaction = async (payload, isLocal = false) => {
     // Since transaction manager decided that we can't proceed, send a no to log from Ci
     if (!allVotedYes) {
       walServices.writeLog(transactionId, payload.action, "ABORT", {error: "Not all nodes said yes"})
+      console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: "Not all nodes said yes"}`);
       processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: "Not all nodes said yes"}`);
       throw new Error("One or more nodes voted NO");
     }
 
     walServices.writeLog(transactionId, payload.action, "COMMIT", payload);
+    console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'COMMIT', ${payload}`);
     processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'COMMIT', ${payload}`);
 
     const commitPromises = targetNodes.map(nodeURL => {
@@ -233,6 +236,7 @@ export const startTransaction = async (payload, isLocal = false) => {
     await Promise.all(abortPromises);
     
     walServices.writeLog(transactionId, payload.action, "ABORT", {error: " Coordinator Exception "})
+    console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: " Coordinator Exception "}`);
     processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: " Coordinator Exception "}`);
     processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} aborted successfully`)
     console.log(`[TM:${process.env.PORT}] Tx ${transactionId} aborted successfully`)
@@ -272,6 +276,7 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
   }
   try {
     walServices.writeLog(transactionId, payload.action, "READY", payload); // site promises it can commit if asked
+    console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'READY', ${payload}`);
     processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'READY', ${payload}`);
 
     await handler.validate(payload);
@@ -284,6 +289,7 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
   } catch (error) {
     // Recovery???
     walServices.writeLog(transactionId, payload.action, "ABORT", { error: error.message })
+    console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', { error: error.message }`);
     processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', { error: error.message }`);
     lockManager.release(resourceId, transactionId)
     processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
@@ -297,6 +303,7 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
 export const handleCommit = async (transactionId) => {
   const processTrace = createTrace();
   walServices.writeLog(transactionId, "UNKNOWN", "COMMIT", {});
+  console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, "UNKNOWN", "COMMIT", {}`);
   processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, "UNKNOWN", "COMMIT", {}`);
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
   console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
@@ -350,6 +357,7 @@ export const handleCommit = async (transactionId) => {
 export const handleAbort = async (transactionId) => {
   const processTrace = createTrace();
   walServices.writeLog(transactionId, 'UNKNOWN', 'ABORT', {});
+  console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, 'UNKNOWN', 'ABORT', {}`);
   processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, 'UNKNOWN', 'ABORT', {}`);
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
   console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
