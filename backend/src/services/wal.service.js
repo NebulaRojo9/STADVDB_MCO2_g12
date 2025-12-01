@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 import axios from 'axios';
+import { registry } from './crud_registry.js'
 
 const LOG_DIR = path.resolve('logs');
 
@@ -156,10 +157,30 @@ export const recoverFromLogs = async () => {
     return transactions;
 }
 
-export const undo = async (transactionId) => {
+export const redo = async (transactionId, action, payload) => {
+    console.log(`[REDO] Re-applying transaction ${transactionId} (${action})`);
 
-}
+    const handler = registry[action];
 
-export const redo = async (transactionId) => {
+    if (!handler) {
+        console.error(`[REDO] No handler found for action: ${action}`);
+        return;
+    }
 
+    try {
+        await handler.execute(payload);
+        console.log(`[REDO] Successfully re-applied ${transactionId}`);
+    } catch (error) { // specifically check for duplicate errors        
+        const isDuplicate = error.message.includes('Duplicate') || 
+                            error.message.includes('already exists') ||
+                            error.code === 'ER_DUP_ENTRY';
+
+        if (isDuplicate) {
+            console.warn(`[REDO] Skipped ${transactionId}: Data already consistent (Idempotent).`);
+        } else {
+            console.error(`[REDO] Failed to redo ${transactionId}:`, error.message);
+            // In a real system, you might flag this for manual intervention
+            throw error; 
+        }
+    }
 }

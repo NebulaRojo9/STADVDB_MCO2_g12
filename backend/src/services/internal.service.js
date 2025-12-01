@@ -289,26 +289,25 @@ export const performRecovery = async () => {
       console.warn(`[RECOVERY] Found orphaned transaction ${transactionId} (Action: ${action}). Rolling back.`);
 
       walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery' });
-      // undoTransaction
       recoveryCount++;
     } else if (lastStatus === 'READY') { // unsure, so check other nodes
-      console.warn(`[RECOVERY] Found orphaned transaction ${transactionId}. Checking other nodes' status...`)
+      console.warn(`[RECOVERY] Found orphaned but ready transaction ${transactionId}. Checking other nodes' status...`)
       const decision = await walServices.askPeersForDecision(transactionId, PEER_NODES);
       
       // console.log(decision);
       if (decision === 'COMMIT') {
         console.log(`[RECOVERY] Peers say COMMIT. Committing ${transactionId}`);
         walServices.writeLog(transactionId, action, "COMMIT", { reason: 'Crash Recovery '});
-        // Redo transaction!
+        walServices.redo(transactionId, action, payload);
       } else {
         console.log(`[RECOVERY] At least 1 ABORTED. Aborting ${transactionId}`);
         walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery '})
       }
     } else if (lastStatus === 'COMMIT') { // redo transaction if it is a commit
-      // Don't do anything muna
+      console.log(`[RECOVERY] Found committed transaction ${transactionId} (Action: ${action}). Comitting...`)
+      walServices.redo(transactionId, action, payload)
     } else {
       console.warn(`[RECOVERY] Found aborted transaction ${transactionId} (Action: ${action}). Rolling back.`);
-      // DOn't do anything muna
     }
   }
 
