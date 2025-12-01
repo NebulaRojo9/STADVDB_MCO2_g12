@@ -3,7 +3,7 @@ POST http://localhost:3000/title-basics/create
 Content-Type: application/json
 
 {
-  "tconst": "tt1234567",
+  "tconst": "tt12345672",
   "titleType": "movie",
   "primaryTitle": "Test Movie",
   "originalTitle": "Test Movie Original",
@@ -24,7 +24,7 @@ GET http://localhost:3000/title-basics/readAll
 GET http://localhost:3000/title-basics/readAllFromNode
 
 ### UPDATE a title by ID
-PUT http://localhost:3000/title-basics/update/tt1234567
+PUT http://localhost:3000/title-basics/update/tt1234569
 Content-Type: application/json
 
 {
@@ -39,4 +39,4 @@ Content-Type: application/json
 }
 
 ### DELETE a title by ID
-DELETE http://localhost:3000/title-basics/delete/tt1234567
+DELETE http://localhost:3000/title-basics/delete/tt1234569

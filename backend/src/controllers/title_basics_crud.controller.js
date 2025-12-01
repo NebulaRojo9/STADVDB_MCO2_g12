@@ -95,7 +95,8 @@ export const createTitle = async (req, res) => {
     if (result.success) {
       return res.status(201).json({ 
         message: 'Title created successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // 2PC Failure (Vote NO or Abort)
@@ -130,7 +131,8 @@ export const updateTitle = async (req, res) => {
     if (result.success) {
       return res.status(200).json({ 
         message: 'Title updated successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // If 2PC failed (Abort or Voted No)
@@ -163,7 +165,8 @@ export const deleteTitle = async (req, res) => {
     if (result.success) {
       return res.status(200).json({ 
         message: 'Title updated successfully', 
-        transactionId: result.transactionId 
+        transactionId: result.transactionId,
+        result
       });
     } else {
       // If 2PC failed (Abort or Voted No)
