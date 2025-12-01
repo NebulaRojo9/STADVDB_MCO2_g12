@@ -77,3 +77,15 @@ export async function updateTitle(id, data) {
   const [result] = await pool.execute(sql, params);
   return result;
 }
+
+export async function deleteTitle(id) {
+  const pool = await getDB();
+
+  const sql = `
+  DELETE FROM title_basics 
+  WHERE tconst = ?`
+
+  const result = await pool.execute(sql, [id])
+
+  return result
+}

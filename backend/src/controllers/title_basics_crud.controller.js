@@ -3,38 +3,9 @@
 // IMPORT THE SERVICE, NOT THE CONTROLLER
 import { startTransaction } from '../services/internal.service.js'; 
 
-export const updateTitle = async (req, res) => {
-  const { id } = req.params;
-  const data = req.body;
+export const readTitle = async (req, res) => {
 
-  try {
-    // 1. Initiate the 2PC Transaction (Act as Coordinator)
-    const result = await startTransaction({
-      action: 'UPDATE_TITLE',      // Must match crud_registry.js key
-      id: id,                      // Used for Locking resource
-      data: data,                  // The actual data to update
-      startYear: data.startYear    // Used for your Fragmentation logic
-    });
-
-    // 2. Respond to Client based on 2PC Result
-    if (result.success) {
-      return res.status(200).json({ 
-        message: 'Title updated successfully', 
-        transactionId: result.transactionId 
-      });
-    } else {
-      // If 2PC failed (Abort or Voted No)
-      return res.status(409).json({ 
-        error: 'Update failed via Distributed Consensus', 
-        details: result.error 
-      });
-    }
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Internal Server Error' });
-  }
-};
+}
 
 export const createTitle = async (req, res) => {
   const data = req.body;
@@ -76,3 +47,68 @@ export const createTitle = async (req, res) => {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
+export const updateTitle = async (req, res) => {
+  const { id } = req.params;
+  const data = req.body;
+
+  try {
+    // 1. Initiate the 2PC Transaction (Act as Coordinator)
+    const result = await startTransaction({
+      action: 'UPDATE_TITLE',      // Must match crud_registry.js key
+      id: id,                      // Used for Locking resource
+      data: data,                  // The actual data to update
+      startYear: data.startYear    // Used for your Fragmentation logic
+    });
+
+    // 2. Respond to Client based on 2PC Result
+    if (result.success) {
+      return res.status(200).json({ 
+        message: 'Title updated successfully', 
+        transactionId: result.transactionId 
+      });
+    } else {
+      // If 2PC failed (Abort or Voted No)
+      return res.status(409).json({ 
+        error: 'Update failed via Distributed Consensus', 
+        details: result.error 
+      });
+    }
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+export const deleteTitle = async (req, res) => {
+  const { id } = req.params;
+  const data = req.body;
+
+  try {
+    // 1. Initiate the 2PC Transaction (Act as Coordinator)
+    const result = await startTransaction({
+      action: 'DELETE_TITLE',      // Must match crud_registry.js key
+      id: id,                      // Used for Locking resource
+      startYear: data.startYear    // Used for your Fragmentation logic
+    });
+
+    // 2. Respond to Client based on 2PC Result
+    if (result.success) {
+      return res.status(200).json({ 
+        message: 'Title updated successfully', 
+        transactionId: result.transactionId 
+      });
+    } else {
+      // If 2PC failed (Abort or Voted No)
+      return res.status(409).json({ 
+        error: 'Update failed via Distributed Consensus', 
+        details: result.error 
+      });
+    }
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
