@@ -16,7 +16,7 @@ router.post('/reset', testController.resetState);
 
 // GET TEST CASES FOR CONCURRENCY TESTING
 router.get('/concurrency-1', concurrencyTestController.testReadRead);
-// router.get('/concurrency-2', concurrencyTestController.testCase2);
-// router.get('/concurrency-3', concurrencyTestController.testCase3);
+router.get('/concurrency-2', concurrencyTestController.testWriteRead);
+router.get('/concurrency-3', concurrencyTestController.testWriteWrite);
 
 export default router;

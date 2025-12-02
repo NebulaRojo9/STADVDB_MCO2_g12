@@ -59,6 +59,10 @@ DELETE http://localhost:3000/title-basics/delete/tt1234569?startYear=2025
 
 ### CONCURRENCY TEST
 GET http://localhost:3000/test/concurrency-1
+### CONCURRENCY TEST
+GET http://localhost:3000/test/concurrency-2
+### CONCURRENCY TEST
+GET http://localhost:3000/test/concurrency-3
 ### CRASH node 0, HARD
 POST http://localhost:3000/test/crash/1
 
