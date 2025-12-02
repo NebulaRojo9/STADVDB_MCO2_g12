@@ -11,7 +11,17 @@ import {
   Database,
 } from "lucide-react";
 
-// Backend API base URL.
+const generateUniqueId = () => {
+  // Generate a random number between 0 and 99,999,999
+  const randomNum = Math.floor(Math.random() * 100000000);
+
+  // Pad it with zeros so it is ALWAYS 8 digits long (e.g., 5 becomes 00000005)
+  const eightDigits = String(randomNum).padStart(8, "0");
+
+  return `tt${eightDigits}`;
+};
+
+// Backend API base URL. test
 // For dev, point this to the node paired with this frontend instance, e.g.:
 //   VITE_API_BASE_URL=http://localhost:3000  (Node 0 webapp)
 //   VITE_API_BASE_URL=http://localhost:3001  (Node 1 webapp)
@@ -67,11 +77,11 @@ export default function MovieDatabaseApp() {
         : null;
 
     return {
-      tconst: frontendData.id || frontendData.tconst || `tt${Date.now()}`, // Use id as tconst, or generate
+      tconst: frontendData.id || frontendData.tconst || generateUniqueId(), // Use id as tconst, or generate
       titleType: frontendData.titleType || "",
       primaryTitle: frontendData.primaryTitle || "",
       originalTitle: frontendData.originalTitle || "",
-      isAdult: frontendData.isAdult ? 1 : 0, // Convert boolean to 0/1
+      isAdult: !!frontendData.isAdult,
       startYear: startYear && !isNaN(startYear) ? startYear : null,
       endYear: endYear && !isNaN(endYear) ? endYear : null,
       runtimeMinutes:
@@ -419,7 +429,7 @@ export default function MovieDatabaseApp() {
         // Create new - generate tconst if not provided
         const createData = {
           ...formData,
-          id: formData.id || `tt${Date.now()}`, // Generate tconst if not provided
+          id: formData.id || generateUniqueId(), // Generate tconst if not provided
         };
         await handleCreate(createData);
       }
