@@ -11,10 +11,13 @@ import {
   Database,
 } from "lucide-react";
 
-// Use same-origin backend; the node / host details are hidden behind the API.
-// In production you can optionally prefix this with an env-based URL.
-const API_BASE_URL = "";
-
+// Backend API base URL.
+// For dev, point this to the node paired with this frontend instance, e.g.:
+//   VITE_API_BASE_URL=http://localhost:3000  (Node 0 webapp)
+//   VITE_API_BASE_URL=http://localhost:3001  (Node 1 webapp)
+//   VITE_API_BASE_URL=http://localhost:3002  (Node 2 webapp)
+// In production you can serve the frontend behind the same origin as the backend.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 const TAB_KEYS = ["User", "Node 0", "Node 1", "Node 2"];
 
 export default function MovieDatabaseApp() {
