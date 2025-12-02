@@ -1,5 +1,5 @@
 ### CREATE a new title
-POST http://localhost:3000/title-basics/create
+POST http://localhost:3000/title-basics/create?delay=10000
 Content-Type: application/json
 
 {
@@ -15,7 +15,7 @@ Content-Type: application/json
 }
 
 ### READ a single title by ID
-GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025
+GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025?delay=10000
 
 ### READ ALL titles
 GET http://localhost:3000/title-basics/readAll

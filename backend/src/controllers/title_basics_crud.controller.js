@@ -7,10 +7,10 @@ import { startTransaction, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost, 
 export const readTitle = async (req, res) => {
   const { id } = req.params;
   // optional
-  const { startYear } = req.query; 
+  const { startYear, delay } = req.query; 
 
   try {
-    const titleData = await startReadTitle(id, startYear);
+    const titleData = await startReadTitle(id, startYear, delay);
 
     if (titleData) {
       return res.status(200).json(titleData);
