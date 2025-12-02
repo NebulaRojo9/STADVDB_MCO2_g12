@@ -239,7 +239,7 @@ const fetchDataFromBackend = useCallback(async () => {
     }
 
     if (newEntries.length > 0) {
-      setLogs((prev) => [...prev, ...newEntries]);
+      setLogs(newEntries);
     }
   }, []);
 
