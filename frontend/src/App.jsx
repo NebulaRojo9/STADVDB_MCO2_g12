@@ -30,12 +30,11 @@ const generateUniqueId = () => {
 const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 const NODE_API_BASE_URLS = {
-  User: import.meta.env.VITE_NODE0_API_BASE_URL || DEFAULT_API_BASE_URL,
+  "User": import.meta.env.VITE_NODE0_API_BASE_URL || DEFAULT_API_BASE_URL,
   "Node 0": import.meta.env.VITE_NODE0_API_BASE_URL || DEFAULT_API_BASE_URL,
   "Node 1": import.meta.env.VITE_NODE1_API_BASE_URL || DEFAULT_API_BASE_URL,
   "Node 2": import.meta.env.VITE_NODE2_API_BASE_URL || DEFAULT_API_BASE_URL,
 };
-const TAB_KEYS = ["User", "Node 0", "Node 1", "Node 2"];
 
 export default function MovieDatabaseApp() {
   // --- State Management ---
@@ -101,7 +100,7 @@ export default function MovieDatabaseApp() {
 const fetchDataFromBackend = useCallback(async () => {
     // 1. Define the requests we want to make
     const requests = [
-      { key: "User", url: `${NODE_API_BASE_URLS["Node 0"]}/title-basics/readAll` },
+      { key: "User", url: `${NODE_API_BASE_URLS["User"]}/title-basics/readAll` },
       { key: "Node 0", url: `${NODE_API_BASE_URLS["Node 0"]}/title-basics/readAllFromNode` },
       { key: "Node 1", url: `${NODE_API_BASE_URLS["Node 1"]}/title-basics/readAllFromNode` },
       { key: "Node 2", url: `${NODE_API_BASE_URLS["Node 2"]}/title-basics/readAllFromNode` },
