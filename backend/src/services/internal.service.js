@@ -108,8 +108,8 @@ export const startTransaction = async (payload, isLocal = false) => {
   let isParticipant = true;
 
   // if local run only
-  processTrace.log(`\n\nNEW TRANSACTION\n[TM:${process.env.PORT}] Tx ${transactionId} started`)
-  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} started`)
+  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} started`)
+  console.log(`\n\nNEW TRANSACTION\n[TM:${process.env.PORT}] Tx ${transactionId} started`)
   if (isLocal) {
     targetNodes = []
     isParticipant = true;
@@ -173,15 +173,14 @@ export const startTransaction = async (payload, isLocal = false) => {
 
     // Phase 1: Obtaining a Decision
     const prepareResponses = await Promise.all(preparePromises);
-
-    const allVotedYes = prepareResponses.every(res => res.vote === 'YES');
-
-    // Since transaction manager decided that we can't proceed, send a no to log from Ci
-    if (!allVotedYes) {
-      walServices.writeLog(transactionId, payload.action, "ABORT", {error: "Not all nodes said yes"})
-      console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: "Not all nodes said yes"}`);
-      processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: "Not all nodes said yes"}`);
-      throw new Error("One or more nodes voted NO");
+    const failedResponse = prepareResponses.find(res => res.vote === 'NO');
+    if (failedResponse) {
+      const reason = failedResponse.error || "One or more nodes voted NO";
+      
+      walServices.writeLog(transactionId, payload.action, "ABORT", { error: reason });
+      console.log(`[WAL:${process.env.PORT}] Updated: ${transactionId}, ABORT, ${reason}`);
+      
+      throw new Error(reason); 
     }
 
     walServices.writeLog(transactionId, payload.action, "COMMIT", payload);
@@ -242,7 +241,7 @@ export const startTransaction = async (payload, isLocal = false) => {
     processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: " Coordinator Exception "}`);
     processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} aborted successfully`)
     console.log(`[TM:${process.env.PORT}] Tx ${transactionId} aborted successfully`)
-    return { success: false, error: "Transaction Aborted", processTrace: processTrace.get() };
+    return { success: false, error: error.message, processTrace: processTrace.get() };
   }
 }
 
@@ -260,7 +259,7 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
   if (!handler) {
     console.error(`Unknown action type: ${payload.action}`);
     processTrace.log(`Unknown action type: ${payload.action}`);
-    return { vote: "NO"};
+    return { vote: "NO", error: "Unknown action type"};
   }
 
   const resourceId = `tx-${payload.id}`;
@@ -274,7 +273,7 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
   } catch (error) {
     processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Lock Acquisition Failed)`, error.message);
     console.error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Lock Acquisition Failed)`, error.message);
-    return { vote: "NO", processTrace: processTrace.get()}
+    return { vote: "NO", error: error.message, processTrace: processTrace.get()}
   }
   try {
     walServices.writeLog(transactionId, payload.action, "READY", payload); // site promises it can commit if asked
@@ -291,12 +290,12 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
   } catch (error) {
     // Recovery???
     walServices.writeLog(transactionId, payload.action, "ABORT", { error: error.message })
-    console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', { error: error.message }`);
-    processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', { error: error.message }`);
+    console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', error: ${error.message}`);
+    processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', error: ${error.message}`);
     lockManager.release(resourceId, transactionId)
     processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
     console.error(`[TM:${process.env.PORT}] Tx ${transactionId} Vote: NO (Validation Failed)`, error.message);
-    return { vote: "NO", processTrace: processTrace.get() }
+    return { vote: "NO", error: error.message, processTrace: processTrace.get() }
   }
 }
 

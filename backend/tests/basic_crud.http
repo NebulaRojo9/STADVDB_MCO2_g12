@@ -3,11 +3,11 @@ POST http://localhost:3000/title-basics/create
 Content-Type: application/json
 
 {
-  "tconst": "tt12345",
+  "tconst": "tt1234567",
   "titleType": "movie",
   "primaryTitle": "Test Movie",
   "originalTitle": "Test Movie Original",
-  "isAdult": 0,
+  "isAdult": true,
   "startYear": 2025,
   "endYear": null,
   "runtimeMinutes": 120,
