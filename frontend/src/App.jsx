@@ -172,28 +172,40 @@ export default function MovieDatabaseApp() {
   }, [activeTab, fetchDataFromBackend]);
 
   // Log state
-  const [logs] = useState([
-    { id: 1, timestamp: "10:42:01", message: "Transaction Started: Node 0" },
-    {
-      id: 2,
-      timestamp: "10:42:02",
-      message: "Begin Write: Movie ID 102 (User Action)",
-    },
-    { id: 3, timestamp: "10:42:02", message: "Node 1: Prepare Commit" },
-    { id: 4, timestamp: "10:42:03", message: "Node 2: Read Request received" },
-    {
-      id: 5,
-      timestamp: "10:42:03",
-      message: "Commit: Transaction 445A success",
-    },
-    { id: 6, timestamp: "10:42:05", message: "Transaction Started: Node 1" },
-    { id: 7, timestamp: "10:42:06", message: "Read: Movie ID 15" },
-    {
-      id: 8,
-      timestamp: "10:42:06",
-      message: "Sync: Replicating data to Node 2",
-    },
-  ]);
+  const [logs, setLogs] = useState([]);
+
+  const appendLogMessagesFromResponse = useCallback((responseJson) => {
+    if (!responseJson) return;
+
+    const timestamp = new Date().toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    const newEntries = [];
+
+    if (responseJson.message) {
+      newEntries.push({
+        id: crypto.randomUUID(),
+        timestamp,
+        message: responseJson.message,
+      });
+    }
+
+    if (responseJson.result && responseJson.result.message) {
+      newEntries.push({
+        id: crypto.randomUUID(),
+        timestamp,
+        message: responseJson.result.message,
+      });
+    }
+
+    if (newEntries.length > 0) {
+      setLogs((prev) => [...prev, ...newEntries]);
+    }
+  }, []);
 
   // Derived state: The movies to display based on the active tab and pagination
   const currentTabMovies = allMovies[activeTab] || [];
@@ -296,7 +308,7 @@ export default function MovieDatabaseApp() {
       }
 
       const result = await response.json();
-      console.log("Create successful:", result);
+      appendLogMessagesFromResponse(result);
 
       // Refresh data after successful create
       await refreshAllTabs();
@@ -385,7 +397,7 @@ export default function MovieDatabaseApp() {
       }
 
       const result = await response.json();
-      console.log("Update successful:", result);
+      appendLogMessagesFromResponse(result);
 
       // Refresh data after successful update
       await refreshAllTabs();
@@ -435,7 +447,7 @@ export default function MovieDatabaseApp() {
       }
 
       const result = await response.json();
-      console.log("Delete successful:", result);
+      appendLogMessagesFromResponse(result);
 
       // Refresh data after successful delete
       await refreshAllTabs();
