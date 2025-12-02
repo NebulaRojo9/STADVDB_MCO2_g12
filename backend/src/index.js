@@ -18,10 +18,15 @@ await initDB();
 await performRecovery();
 
 // Enable CORS for the Vite dev server (and optionally other allowed origins)
+const envOrigins = (process.env.ALLOWED_CORS || "")
+  .split(",") // Split into array
+  .map(origin => origin.trim().replace(/\/$/, "")) // Remove spaces & trailing slashes
+  .filter(Boolean); // Remove empty strings (e.g. caused by "url1,,url2")
+
 const allowedOrigins = [
-  process.env.NODE_A_URL,
-  process.env.NODE_B_URL,
-  process.env.NODE_C_URL,
+  ...envOrigins,
+  'http://localhost:3000',
+  'http://localhost:5173'
 ];
 
 app.use(
