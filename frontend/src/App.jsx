@@ -11,13 +11,30 @@ import {
   Database,
 } from "lucide-react";
 
-// Backend API base URL.
-// For dev, point this to the node paired with this frontend instance, e.g.:
-//   VITE_API_BASE_URL=http://localhost:3000  (Node 0 webapp)
-//   VITE_API_BASE_URL=http://localhost:3001  (Node 1 webapp)
-//   VITE_API_BASE_URL=http://localhost:3002  (Node 2 webapp)
-// In production you can serve the frontend behind the same origin as the backend.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+const generateUniqueId = () => {
+  // Generate a random number between 0 and 99,999,999
+  const randomNum = Math.floor(Math.random() * 100000000);
+
+  // Pad it with zeros so it is ALWAYS 8 digits long (e.g., 5 becomes 00000005)
+  const eightDigits = String(randomNum).padStart(8, "0");
+
+  return `tt${eightDigits}`;
+};
+
+// Backend API base URLs.
+// For a single frontend talking to all 3 nodes, configure:
+//   VITE_NODE0_API_BASE_URL=http://localhost:3000  (Central / Node 0)
+//   VITE_NODE1_API_BASE_URL=http://localhost:3001  (Fragment node 1)
+//   VITE_NODE2_API_BASE_URL=http://localhost:3002  (Fragment node 2)
+// For a per-VM setup, these can all point at the local backend URL.
+const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
+const NODE_API_BASE_URLS = {
+  User: import.meta.env.VITE_NODE0_API_BASE_URL || DEFAULT_API_BASE_URL,
+  "Node 0": import.meta.env.VITE_NODE0_API_BASE_URL || DEFAULT_API_BASE_URL,
+  "Node 1": import.meta.env.VITE_NODE1_API_BASE_URL || DEFAULT_API_BASE_URL,
+  "Node 2": import.meta.env.VITE_NODE2_API_BASE_URL || DEFAULT_API_BASE_URL,
+};
 const TAB_KEYS = ["User", "Node 0", "Node 1", "Node 2"];
 
 export default function MovieDatabaseApp() {
@@ -67,11 +84,11 @@ export default function MovieDatabaseApp() {
         : null;
 
     return {
-      tconst: frontendData.id || frontendData.tconst || `tt${Date.now()}`, // Use id as tconst, or generate
+      tconst: frontendData.id || frontendData.tconst || generateUniqueId(), // Use id as tconst, or generate
       titleType: frontendData.titleType || "",
       primaryTitle: frontendData.primaryTitle || "",
       originalTitle: frontendData.originalTitle || "",
-      isAdult: frontendData.isAdult ? 1 : 0, // Convert boolean to 0/1
+      isAdult: !!frontendData.isAdult,
       startYear: startYear && !isNaN(startYear) ? startYear : null,
       endYear: endYear && !isNaN(endYear) ? endYear : null,
       runtimeMinutes:
@@ -81,25 +98,58 @@ export default function MovieDatabaseApp() {
   };
 
   // Fetch data from backend
-  // Transparency: the frontend always talks to its *local* node using the logical
-  // `readAll` endpoint. The backend is responsible for fragmentation and
-  // aggregation across nodes, so the UI does not need to know which node it is on.
   const fetchDataFromBackend = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/title-basics/readAll`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch data: ${response.statusText}`);
+      // Fetch the full logical view from Node 0 and the local fragments from Node 1 and Node 2 in parallel
+      const [allResponseNode0, fragmentNode1Response, fragmentNode2Response] =
+        await Promise.all([
+          // User and Node 0: full logical dataset
+          fetch(`${NODE_API_BASE_URLS["Node 0"]}/title-basics/readAll`),
+          // Node 1: fragment from node 1
+          fetch(`${NODE_API_BASE_URLS["Node 1"]}/title-basics/readAllFromNode`),
+          // Node 2: fragment from node 2
+          fetch(`${NODE_API_BASE_URLS["Node 2"]}/title-basics/readAllFromNode`),
+        ]);
+
+      if (!allResponseNode0.ok) {
+        throw new Error(
+          `Failed to fetch full data: ${allResponseNode0.statusText}`
+        );
       }
 
-      const fetchedData = await response.json();
-      const transformedData = transformBackendData(fetchedData);
+      if (!fragmentNode1Response.ok) {
+        throw new Error(
+          `Failed to fetch fragment data for Node 1: ${fragmentNode1Response.statusText}`
+        );
+      }
 
-      // Same global logical view for all tabs; node details are hidden.
+      if (!fragmentNode2Response.ok) {
+        throw new Error(
+          `Failed to fetch fragment data for Node 2: ${fragmentNode2Response.statusText}`
+        );
+      }
+
+      const [allDataNode0, fragmentNode1Data, fragmentNode2Data] =
+        await Promise.all([
+          allResponseNode0.json(),
+          fragmentNode1Response.json(),
+          fragmentNode2Response.json(),
+        ]);
+
+      const transformedAll = transformBackendData(allDataNode0);
+      const transformedFragmentNode1 = transformBackendData(fragmentNode1Data);
+      const transformedFragmentNode2 = transformBackendData(fragmentNode2Data);
+
+      // Tab mapping:
+      // - User: full data
+      // - Node 0: full data
+      // - Node 1: fragment from node 1
+      // - Node 2: fragment from node 2
       setAllMovies({
-        User: transformedData,
-        "Node 0": transformedData,
-        "Node 1": transformedData,
-        "Node 2": transformedData,
+        User: transformedAll,
+        "Node 0": transformedAll,
+        "Node 1": transformedFragmentNode1,
+        "Node 2": transformedFragmentNode2,
       });
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -227,13 +277,16 @@ export default function MovieDatabaseApp() {
 
       // CRUD operations always go to the local node; the backend routes to the
       // appropriate fragments and peers.
-      const response = await fetch(`${API_BASE_URL}/title-basics/create`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(backendData),
-      });
+      const response = await fetch(
+        `${DEFAULT_API_BASE_URL}/title-basics/create`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(backendData),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -274,7 +327,7 @@ export default function MovieDatabaseApp() {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/title-basics/read/${id}?startYear=${startYear}`
+        `${DEFAULT_API_BASE_URL}/title-basics/read/${id}?startYear=${startYear}`
       );
 
       if (!response.ok) {
@@ -305,20 +358,22 @@ export default function MovieDatabaseApp() {
   const handleUpdate = async (id, data) => {
     try {
       const backendData = transformFrontendToBackend(data);
+      // For updates, never send tconst in the body — backend forbids PK changes.
+      const { tconst: _ignoreTconst, ...updatePayload } = backendData;
 
       // Validate required fields
-      if (!backendData.startYear) {
+      if (!updatePayload.startYear) {
         throw new Error("startYear is required");
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/title-basics/update/${id}`,
+        `${DEFAULT_API_BASE_URL}/title-basics/update/${id}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(backendData),
+          body: JSON.stringify(updatePayload),
         }
       );
 
@@ -366,7 +421,7 @@ export default function MovieDatabaseApp() {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/title-basics/delete/${id}?startYear=${startYear}`,
+        `${DEFAULT_API_BASE_URL}/title-basics/delete/${id}?startYear=${startYear}`,
         {
           method: "DELETE",
         }
@@ -419,7 +474,7 @@ export default function MovieDatabaseApp() {
         // Create new - generate tconst if not provided
         const createData = {
           ...formData,
-          id: formData.id || `tt${Date.now()}`, // Generate tconst if not provided
+          id: formData.id || generateUniqueId(), // Generate tconst if not provided
         };
         await handleCreate(createData);
       }
@@ -863,17 +918,28 @@ export default function MovieDatabaseApp() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Start Year
                       </label>
-                      <input
-                        required
-                        type="number"
-                        name="startYear"
-                        value={formData.startYear}
-                        onChange={handleInputChange}
-                        placeholder="YYYY"
-                        min="1800"
-                        max="2100"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                      />
+                      {editingId ? (
+                        <input
+                          type="number"
+                          name="startYear"
+                          value={formData.startYear}
+                          readOnly
+                          disabled
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+                        />
+                      ) : (
+                        <input
+                          required
+                          type="number"
+                          name="startYear"
+                          value={formData.startYear}
+                          onChange={handleInputChange}
+                          placeholder="YYYY"
+                          min="1800"
+                          max="2100"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
