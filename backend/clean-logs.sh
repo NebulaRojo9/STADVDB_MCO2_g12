@@ -10,3 +10,5 @@ cd "$SCRIPT_DIR/logs" || exit 1
 rm -f *.log
 
 echo "All .log files deleted from $(pwd)"
+
+cd ..

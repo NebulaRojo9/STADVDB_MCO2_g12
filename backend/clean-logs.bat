@@ -6,3 +6,5 @@ REM Delete all .log files (no confirmation)
 del /q *.log
 
 echo All .log files deleted from %cd%
+
+cd ..
