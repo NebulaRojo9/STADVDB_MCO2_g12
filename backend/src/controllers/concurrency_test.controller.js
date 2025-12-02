@@ -1,10 +1,12 @@
 import axios from 'axios';
 import 'dotenv/config';
 
-const NODE_URL = `http://localhost:${process.env.PORT}/title-basics`;
-const NODE_1 = `http://localhost:3000/title-basics`;
-const NODE_2 = `http://localhost:3001/title-basics`;
-const NODE_3 = `http://localhost:3002/title-basics`;
+// hacky fix
+const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
+
+const NODE_1 = `${process.env.NODE_URL}/title-basics`;
+const NODE_2 = `${PEER_NODES[0]}/title-basics` || "umaybatwala";
+const NODE_3 = `${PEER_NODES[1]}/title-basics` || "umaybatwala";
 
 export const testReadRead = async (req, res) => {
   const id = 'tt1234567';

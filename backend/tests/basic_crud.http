@@ -3,16 +3,65 @@ POST http://localhost:3000/title-basics/create
 Content-Type: application/json
 
 {
-  "tconst": "tt1231237",
+  "tconst": "tt1234567",
   "titleType": "movie",
-  "primaryTitle": "Test Movie",
-  "originalTitle": "Test Movie Original",
+  "primaryTitle": "Test Movie to A",
+  "originalTitle": "Should be in B",
   "isAdult": true,
-  "startYear": 2025,
+  "startYear": 1995,
   "endYear": null,
   "runtimeMinutes": 120,
   "genres": "Drama"
 }
+### CREATE a new title
+POST http://localhost:3000/title-basics/create
+Content-Type: application/json
+
+{
+  "tconst": "tt1234568",
+  "titleType": "movie",
+  "primaryTitle": "Test Movie to A",
+  "originalTitle": "Should be in C",
+  "isAdult": true,
+  "startYear": 2020,
+  "endYear": null,
+  "runtimeMinutes": 120,
+  "genres": "Drama"
+}
+
+
+### CREATE a new title
+POST http://localhost:3001/title-basics/create
+Content-Type: application/json
+
+{
+  "tconst": "tt1234569",
+  "titleType": "movie",
+  "primaryTitle": "Test Movie to B",
+  "originalTitle": "Should be in C",
+  "isAdult": true,
+  "startYear": 2020,
+  "endYear": null,
+  "runtimeMinutes": 120,
+  "genres": "Drama"
+}
+
+### CREATE a new title
+POST http://localhost:3000/title-basics/create
+Content-Type: application/json
+
+{
+  "tconst": "tt1234570",
+  "titleType": "movie",
+  "primaryTitle": "Test Movie to C",
+  "originalTitle": "Should be in B",
+  "isAdult": true,
+  "startYear": 1995,
+  "endYear": null,
+  "runtimeMinutes": 120,
+  "genres": "Drama"
+}
+
 
 ### READ a single title by ID
 GET http://localhost:3000/title-basics/read/tt0000001?startYear=2025&delay=1
@@ -26,15 +75,15 @@ GET http://localhost:3002/title-basics/readAll
 GET http://localhost:3000/title-basics/readAllFromNode
 
 ### UPDATE a title by ID
-PUT http://localhost:3000/title-basics/update/tt1234567?delay=10000
+PUT http://localhost:3001/title-basics/update/tt1234567?delay=0
 Content-Type: application/json
 
 {
   "titleType": "movie",
-  "primaryTitle": "DELAY 10s",
-  "originalTitle": "Updated Movie Original",
-  "isAdult": 0,
-  "startYear": 2026,
+  "primaryTitle": "UPDATED tt1234567",
+  "originalTitle": "UPDATED tt1234567",
+  "isAdult": true,
+  "startYear": 1995,
   "endYear": null,
   "runtimeMinutes": 130,
   "genres": "Action,Drama"
