@@ -6,6 +6,11 @@ import internalRouter from './routes/internal.routes.js';
 import testRouter from './routes/test.routes.js';
 import { performRecovery } from './services/internal.service.js';
 import { initDB } from './config/connect.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 const app = express();
 await initDB();
@@ -14,6 +19,7 @@ await performRecovery();
 // Enable CORS for the Vite dev server (and optionally other allowed origins)
 const allowedOrigins = [
   'http://localhost:5173', // Vite default dev origin
+  'http://localhost:3000'
 ];
 
 app.use(
@@ -35,8 +41,9 @@ app.use('/title-basics', titleBasicsRouter);
 app.use('/internal', internalRouter);
 app.use('/test', testRouter);
 
-app.get('/', (req, res) => {
-  res.send('Server is ready');
+app.use(express.static(path.join(__dirname, '../dist')));
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
 
 const port = process.env.PORT;

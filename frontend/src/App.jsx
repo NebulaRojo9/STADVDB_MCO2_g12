@@ -98,68 +98,60 @@ export default function MovieDatabaseApp() {
   };
 
   // Fetch data from backend
-  const fetchDataFromBackend = useCallback(async () => {
-    try {
-      // Fetch the full logical view from Node 0 and the local fragments from Node 1 and Node 2 in parallel
-      const [allResponseNode0, fragmentNode1Response, fragmentNode2Response] =
-        await Promise.all([
-          // User and Node 0: full logical dataset
-          fetch(`${NODE_API_BASE_URLS["Node 0"]}/title-basics/readAll`),
-          // Node 1: fragment from node 1
-          fetch(`${NODE_API_BASE_URLS["Node 1"]}/title-basics/readAllFromNode`),
-          // Node 2: fragment from node 2
-          fetch(`${NODE_API_BASE_URLS["Node 2"]}/title-basics/readAllFromNode`),
-        ]);
+const fetchDataFromBackend = useCallback(async () => {
+    // 1. Define the requests we want to make
+    const requests = [
+      { key: "User", url: `${NODE_API_BASE_URLS["Node 0"]}/title-basics/readAll` },
+      { key: "Node 0", url: `${NODE_API_BASE_URLS["Node 0"]}/title-basics/readAllFromNode` },
+      { key: "Node 1", url: `${NODE_API_BASE_URLS["Node 1"]}/title-basics/readAllFromNode` },
+      { key: "Node 2", url: `${NODE_API_BASE_URLS["Node 2"]}/title-basics/readAllFromNode` },
+    ];
 
-      if (!allResponseNode0.ok) {
-        throw new Error(
-          `Failed to fetch full data: ${allResponseNode0.statusText}`
-        );
+    // 2. Fire all requests using 'allSettled' (doesn't fail if one crashes)
+    const results = await Promise.allSettled(
+      requests.map(async (req) => {
+        const res = await fetch(req.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      })
+    );
+
+    // 3. Process results individually
+    const newMoviesState = {};
+
+    results.forEach((result, index) => {
+      const { key } = requests[index];
+
+      if (result.status === "fulfilled") {
+        // --- SUCCESS CASE ---
+        // Handle the { data: [...] } structure if present
+        let rawData = result.value;
+        if (rawData && Array.isArray(rawData.data)) rawData = rawData.data;
+        if (rawData && Array.isArray(rawData.result)) rawData = rawData.result;
+        
+        // Transform and save
+        newMoviesState[key] = transformBackendData(rawData);
+      } else {
+        // --- FAILURE CASE (Node Offline) ---
+        console.warn(`Failed to fetch ${key}:`, result.reason);
+
+        // Create a "Dummy" row to display the error in the table
+        newMoviesState[key] = [{
+          id: `error-${key}`,
+          primaryTitle: `⚠️ ${key} is Offline`,
+          titleType: "Connection Error",
+          originalTitle: "Check network/console",
+          isAdult: false,
+          startYear: "N/A",
+          endYear: "N/A",
+          runtime: 0,
+          genres: "Error",
+        }];
       }
+    });
 
-      if (!fragmentNode1Response.ok) {
-        throw new Error(
-          `Failed to fetch fragment data for Node 1: ${fragmentNode1Response.statusText}`
-        );
-      }
-
-      if (!fragmentNode2Response.ok) {
-        throw new Error(
-          `Failed to fetch fragment data for Node 2: ${fragmentNode2Response.statusText}`
-        );
-      }
-
-      const [allDataNode0, fragmentNode1Data, fragmentNode2Data] =
-        await Promise.all([
-          allResponseNode0.json(),
-          fragmentNode1Response.json(),
-          fragmentNode2Response.json(),
-        ]);
-
-      const transformedAll = transformBackendData(allDataNode0);
-      const transformedFragmentNode1 = transformBackendData(fragmentNode1Data);
-      const transformedFragmentNode2 = transformBackendData(fragmentNode2Data);
-
-      // Tab mapping:
-      // - User: full data
-      // - Node 0: full data
-      // - Node 1: fragment from node 1
-      // - Node 2: fragment from node 2
-      setAllMovies({
-        User: transformedAll,
-        "Node 0": transformedAll,
-        "Node 1": transformedFragmentNode1,
-        "Node 2": transformedFragmentNode2,
-      });
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      setAllMovies({
-        User: [],
-        "Node 0": [],
-        "Node 1": [],
-        "Node 2": [],
-      });
-    }
+    // 4. Update state all at once
+    setAllMovies(newMoviesState);
   }, []);
 
   const refreshAllTabs = useCallback(async () => {
