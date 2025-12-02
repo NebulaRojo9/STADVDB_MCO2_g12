@@ -56,3 +56,12 @@ Content-Type: application/json
 
 ### DELETE a title by ID
 DELETE http://localhost:3000/title-basics/delete/tt1234569?startYear=2025
+
+### CRASH node 0, HARD
+POST http://localhost:3000/test/crash/1
+
+### CRASH node 1, HARD
+POST http://localhost:3001/test/crash/1
+
+### CRASH node 2, HARD
+POST http://localhost:3002/test/crash/1
