@@ -12,6 +12,36 @@ const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 const pendingTransactions = new Map();
 const committedHistory = new Set();
 
+const TRANSACTION_TIMEOUT = 10000; // 10 Seconds
+
+const cleanUpExpiredTransactions = async () => {
+  const now = Date.now();
+  
+  for (const [transactionId, tx] of pendingTransactions.entries()) {
+    
+    if (now - tx.timestamp > TRANSACTION_TIMEOUT) {
+      console.warn(`[TIMEOUT] Tx ${transactionId} expired. Aborting...`);
+      
+      handleAbort(transactionId).catch(err => 
+        console.error(`[TIMEOUT] Failed to abort ${transactionId}`, err)
+      );
+    }
+  }
+}
+
+const startCleanUpService = async () => {
+  console.log("[TRANSACTION CLEAN UP SERVICE STARTED]")
+
+  // Run immediately on start? Optional.
+  // await cleanUpExpiredTransactions(); 
+  
+  setInterval(() => {
+    cleanUpExpiredTransactions();
+  }, 10 * 1000); 
+}
+
+startCleanUpService();
+
 export const getHostNodeUrl = () => {
   return PEER_NODES.find(url => url.includes('3000'));
 }
