@@ -3,7 +3,7 @@ POST http://localhost:3000/title-basics/create
 Content-Type: application/json
 
 {
-  "tconst": "tt1234567",
+  "tconst": "tt1231237",
   "titleType": "movie",
   "primaryTitle": "Test Movie",
   "originalTitle": "Test Movie Original",
@@ -20,7 +20,7 @@ GET http://localhost:3000/title-basics/read/tt0000001?startYear=2025&delay=1
 GET http://localhost:3000/title-basics/read/tt12345?startYear=2025&delay=10
 
 ### READ ALL titles
-GET http://localhost:3000/title-basics/readAll
+GET http://localhost:3002/title-basics/readAll
 
 ### READ ALL titles (From Node variant)
 GET http://localhost:3000/title-basics/readAllFromNode
