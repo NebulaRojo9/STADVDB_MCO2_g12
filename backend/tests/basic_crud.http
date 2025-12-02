@@ -15,7 +15,9 @@ Content-Type: application/json
 }
 
 ### READ a single title by ID
-GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025
+GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025&delay=10000
+###
+GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025&delay=100000
 
 ### READ ALL titles
 GET http://localhost:3000/title-basics/readAll
@@ -24,12 +26,26 @@ GET http://localhost:3000/title-basics/readAll
 GET http://localhost:3000/title-basics/readAllFromNode
 
 ### UPDATE a title by ID
-PUT http://localhost:3000/title-basics/update/tt1234569
+PUT http://localhost:3000/title-basics/update/tt1234567?delay=10000
 Content-Type: application/json
 
 {
   "titleType": "movie",
-  "primaryTitle": "Updated Movie Title",
+  "primaryTitle": "DELAY 10s",
+  "originalTitle": "Updated Movie Original",
+  "isAdult": 0,
+  "startYear": 2026,
+  "endYear": null,
+  "runtimeMinutes": 130,
+  "genres": "Action,Drama"
+}
+### UPDATE a title by ID
+PUT http://localhost:3000/title-basics/update/tt1234567?delay=5000
+Content-Type: application/json
+
+{
+  "titleType": "movie",
+  "primaryTitle": "DELAY 5s",
   "originalTitle": "Updated Movie Original",
   "isAdult": 0,
   "startYear": 2026,
@@ -40,3 +56,18 @@ Content-Type: application/json
 
 ### DELETE a title by ID
 DELETE http://localhost:3000/title-basics/delete/tt1234569?startYear=2025
+
+### CONCURRENCY TEST
+GET http://localhost:3000/test/concurrency-1
+### CONCURRENCY TEST
+GET http://localhost:3000/test/concurrency-2
+### CONCURRENCY TEST
+GET http://localhost:3000/test/concurrency-3
+### CRASH node 0, HARD
+POST http://localhost:3000/test/crash/1
+
+### CRASH node 1, HARD
+POST http://localhost:3001/test/crash/1
+
+### CRASH node 2, HARD
+POST http://localhost:3002/test/crash/1

@@ -52,14 +52,15 @@ export const broadcastResetDatabases = async () => {
   return null;
 }
 
-export const startReadTitle = async (id, startYear = undefined) => {
+export const startReadTitle = async (id, startYear = undefined, delay = 0) => {
   // No start year specified for read title, but if it is we can skip this part
   if (!startYear) {
     // Check self if record exists
     const localResult = await startTransaction({
       action: 'READ_TITLE',
       id: id,
-      startYear: startYear 
+      startYear: startYear,
+      delay: delay
     }, true); 
 
     if (localResult.success && localResult.data) {
@@ -71,7 +72,8 @@ export const startReadTitle = async (id, startYear = undefined) => {
   const payload = {
     action: 'READ_TITLE',
     id: id,
-    startYear: startYear
+    startYear: startYear,
+    delay: delay
   };
 
   const result = await startTransaction(payload);
@@ -106,7 +108,7 @@ export const startTransaction = async (payload, isLocal = false) => {
   let isParticipant = true;
 
   // if local run only
-  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} started`)
+  processTrace.log(`\n\nNEW TRANSACTION\n[TM:${process.env.PORT}] Tx ${transactionId} started`)
   console.log(`[TM:${process.env.PORT}] Tx ${transactionId} started`)
   if (isLocal) {
     targetNodes = []
@@ -302,7 +304,12 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
 // TODO: ADD CHECK FOR MULTIPLE CALLS
 export const handleCommit = async (transactionId) => {
   const processTrace = createTrace();
-  walServices.writeLog(transactionId, "UNKNOWN", "COMMIT", {});
+  const receivedTransaction = pendingTransactions.get(transactionId);
+  let receivedTransactionAction = "UNKNOWN"
+  if (receivedTransaction) {
+    receivedTransactionAction = receivedTransaction.payload.action
+  }
+  walServices.writeLog(transactionId, receivedTransactionAction, "COMMIT", {});
   console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, "UNKNOWN", "COMMIT", {}`);
   processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, "UNKNOWN", "COMMIT", {}`);
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
@@ -356,7 +363,12 @@ export const handleCommit = async (transactionId) => {
 
 export const handleAbort = async (transactionId) => {
   const processTrace = createTrace();
-  walServices.writeLog(transactionId, 'UNKNOWN', 'ABORT', {});
+  const receivedTransaction = pendingTransactions.get(transactionId);
+  let receivedTransactionAction = "UNKNOWN"
+  if (receivedTransaction) {
+    receivedTransactionAction = receivedTransaction.payload.action
+  }
+  walServices.writeLog(transactionId, receivedTransactionAction, "ABORT", {});
   console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, 'UNKNOWN', 'ABORT', {}`);
   processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, 'UNKNOWN', 'ABORT', {}`);
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)

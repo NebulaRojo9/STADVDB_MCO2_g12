@@ -39,7 +39,7 @@ Content-Type: application/json
 # Test PUT /title-basics/vm/:vmid/update/:id
 # Example: vmid = 1, id = tt1234567
 # -------------------------------
-PUT http://localhost:3000/title-basics/vm/1/update/tt1234567
+GET http://localhost:3000/title-basics/vm/1/update/tt1234567
 Content-Type: application/json
 
 {

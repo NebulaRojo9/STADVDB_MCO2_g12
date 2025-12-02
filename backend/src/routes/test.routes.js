@@ -1,6 +1,7 @@
 // routes/test.routes.js
 import { Router } from 'express';
 import * as testController from '../controllers/test.controller.js';
+import * as concurrencyTestController from '../controllers/concurrency_test.controller.js';
 
 const router = Router();
 
@@ -12,5 +13,10 @@ router.post('/delay', testController.setDelay);
 
 // POST /test/reset
 router.post('/reset', testController.resetState);
+
+// GET TEST CASES FOR CONCURRENCY TESTING
+router.get('/concurrency-1', concurrencyTestController.testReadRead);
+router.get('/concurrency-2', concurrencyTestController.testWriteRead);
+router.get('/concurrency-3', concurrencyTestController.testWriteWrite);
 
 export default router;
