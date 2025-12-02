@@ -30,7 +30,7 @@ const generateUniqueId = () => {
 const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 const NODE_API_BASE_URLS = {
-  "User": import.meta.env.VITE_NODE0_API_BASE_URL || DEFAULT_API_BASE_URL,
+  "User": DEFAULT_API_BASE_URL,
   "Node 0": import.meta.env.VITE_NODE0_API_BASE_URL || DEFAULT_API_BASE_URL,
   "Node 1": import.meta.env.VITE_NODE1_API_BASE_URL || DEFAULT_API_BASE_URL,
   "Node 2": import.meta.env.VITE_NODE2_API_BASE_URL || DEFAULT_API_BASE_URL,
