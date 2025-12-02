@@ -28,8 +28,13 @@ export const readTitle = async (req, res) => {
 export const readTitleAll = async (req, res) => {
   try {
     let localTitles = await titleService.findAllFromNode();
-    const peerTitles = await aggregateAllTitlesFromPeers();
+    // Flag to check if it should aggregate from peers or just return its rows
+    if (req.query.internal === 'true') {
+      console.log(`[READ] Internal request received. Returning ${localTitles.length} local rows.`);
+      return res.status(200).json(localTitles);
+    }
 
+    const peerTitles = await aggregateAllTitlesFromPeers();
     const combined = localTitles.concat(peerTitles);
 
     // De-duplicate

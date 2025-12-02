@@ -53,7 +53,7 @@ export const aggregateAllTitlesFromPeers = async () => {
 
   for (const peerUrl of peersToQuery) {
     try {
-      const response = await axios.get(`${peerUrl}/title-basics/readAll`);
+      const response = await axios.get(`${peerUrl}/title-basics/readAll?internal=true`);
       if (Array.isArray(response.data)) {
         responses = responses.concat(response.data);
       }
