@@ -10,6 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+import 'dotenv/config';
 
 
 const app = express();
@@ -18,8 +19,9 @@ await performRecovery();
 
 // Enable CORS for the Vite dev server (and optionally other allowed origins)
 const allowedOrigins = [
-  'http://localhost:5173', // Vite default dev origin
-  'http://localhost:3000'
+  process.env.NODE_A_URL,
+  process.env.NODE_B_URL,
+  process.env.NODE_C_URL,
 ];
 
 app.use(
