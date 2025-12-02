@@ -53,9 +53,10 @@ export async function createTitle(data, delay = 0) {
   const pool = await getDB();
 
   if (delay > 0) await sleep(delay);
+  const { delay: _ignored, ...dbData } = data;
 
-  const columns = Object.keys(data);
-  const values = Object.values(data);
+  const columns = Object.keys(dbData);
+  const values = Object.values(dbData);
 
   const columnList = columns.map(col => `\`${col}\``).join(', ');
   const placeholders = columns.map(() => '?').join(', ');
@@ -74,8 +75,10 @@ export async function updateTitle(id, data, delay = 0) {
 
   if (delay > 0) await sleep(delay);
 
-  const columns = Object.keys(data);
-  const values = Object.values(data);
+  const { delay: _ignored, ...dbData } = data;
+
+  const columns = Object.keys(dbData);
+  const values = Object.values(dbData);
 
   if (columns.includes('tconst')) {
     throw new Error("Cannot modify Primary Key 'tconst'");

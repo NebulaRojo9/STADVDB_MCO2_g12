@@ -108,7 +108,7 @@ export const startTransaction = async (payload, isLocal = false) => {
   let isParticipant = true;
 
   // if local run only
-  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} started`)
+  processTrace.log(`\n\nNEW TRANSACTION\n[TM:${process.env.PORT}] Tx ${transactionId} started`)
   console.log(`[TM:${process.env.PORT}] Tx ${transactionId} started`)
   if (isLocal) {
     targetNodes = []

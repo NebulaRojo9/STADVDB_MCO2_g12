@@ -1,5 +1,5 @@
 ### CREATE a new title
-POST http://localhost:3000/title-basics/create?delay=10000
+POST http://localhost:3000/title-basics/create?delay=1000
 Content-Type: application/json
 
 {
@@ -24,12 +24,26 @@ GET http://localhost:3000/title-basics/readAll
 GET http://localhost:3000/title-basics/readAllFromNode
 
 ### UPDATE a title by ID
-PUT http://localhost:3000/title-basics/update/tt1234569
+PUT http://localhost:3000/title-basics/update/tt1234567?delay=10000
 Content-Type: application/json
 
 {
   "titleType": "movie",
-  "primaryTitle": "Updated Movie Title",
+  "primaryTitle": "DELAY 10s",
+  "originalTitle": "Updated Movie Original",
+  "isAdult": 0,
+  "startYear": 2026,
+  "endYear": null,
+  "runtimeMinutes": 130,
+  "genres": "Action,Drama"
+}
+### UPDATE a title by ID
+PUT http://localhost:3000/title-basics/update/tt1234567?delay=5000
+Content-Type: application/json
+
+{
+  "titleType": "movie",
+  "primaryTitle": "DELAY 5s",
   "originalTitle": "Updated Movie Original",
   "isAdult": 0,
   "startYear": 2026,
