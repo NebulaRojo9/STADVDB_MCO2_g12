@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Pencil,
   Trash2,
@@ -9,611 +9,117 @@ import {
   Book,
   Terminal,
   Database,
-  ChevronDown,
 } from "lucide-react";
+
+// Use same-origin backend; the node / host details are hidden behind the API.
+// In production you can optionally prefix this with an env-based URL.
+const API_BASE_URL = "";
+
+const TAB_KEYS = ["User", "Node 0", "Node 1", "Node 2"];
 
 export default function MovieDatabaseApp() {
   // --- State Management ---
   const [activeTab, setActiveTab] = useState("User"); // 'User', 'Node 0', 'Node 1', 'Node 2'
   const [currentPage, setCurrentPage] = useState(1);
-  const [isolationLevel, setIsolationLevel] = useState("Read Committed");
   const itemsPerPage = 10; // Increased to 10 rows
 
   // --- Initial Data Sets (Input Part) ---
-  const INITIAL_USER_DATA = [
-    {
-      id: 1,
-      titleType: "Movie",
-      primaryTitle: "Inception",
-      originalTitle: "Inception",
-      isAdult: false,
-      startYear: 2010,
-      endYear: "",
-      runtime: 148,
-      genres: "Action, Sci-Fi",
-    },
-    {
-      id: 2,
-      titleType: "TV Series",
-      primaryTitle: "Breaking Bad",
-      originalTitle: "Breaking Bad",
-      isAdult: false,
-      startYear: 2008,
-      endYear: 2013,
-      runtime: 49,
-      genres: "Crime, Drama",
-    },
-    {
-      id: 3,
-      titleType: "Short",
-      primaryTitle: "Piper",
-      originalTitle: "Piper",
-      isAdult: false,
-      startYear: 2016,
-      endYear: "",
-      runtime: 6,
-      genres: "Animation, Family",
-    },
-    {
-      id: 4,
-      titleType: "Movie",
-      primaryTitle: "The Godfather",
-      originalTitle: "The Godfather",
-      isAdult: false,
-      startYear: 1972,
-      endYear: "",
-      runtime: 175,
-      genres: "Crime, Drama",
-    },
-    {
-      id: 5,
-      titleType: "Movie",
-      primaryTitle: "The Dark Knight",
-      originalTitle: "The Dark Knight",
-      isAdult: false,
-      startYear: 2008,
-      endYear: "",
-      runtime: 152,
-      genres: "Action, Crime, Drama",
-    },
-    {
-      id: 6,
-      titleType: "TV Series",
-      primaryTitle: "Stranger Things",
-      originalTitle: "Stranger Things",
-      isAdult: false,
-      startYear: 2016,
-      endYear: "",
-      runtime: 51,
-      genres: "Drama, Fantasy, Horror",
-    },
-    {
-      id: 7,
-      titleType: "Movie",
-      primaryTitle: "Pulp Fiction",
-      originalTitle: "Pulp Fiction",
-      isAdult: false,
-      startYear: 1994,
-      endYear: "",
-      runtime: 154,
-      genres: "Crime, Drama",
-    },
-    {
-      id: 8,
-      titleType: "Short",
-      primaryTitle: "Bao",
-      originalTitle: "Bao",
-      isAdult: false,
-      startYear: 2018,
-      endYear: "",
-      runtime: 8,
-      genres: "Animation, Family",
-    },
-    {
-      id: 9,
-      titleType: "Movie",
-      primaryTitle: "Fight Club",
-      originalTitle: "Fight Club",
-      isAdult: true,
-      startYear: 1999,
-      endYear: "",
-      runtime: 139,
-      genres: "Drama",
-    },
-    {
-      id: 10,
-      titleType: "Movie",
-      primaryTitle: "Forrest Gump",
-      originalTitle: "Forrest Gump",
-      isAdult: false,
-      startYear: 1994,
-      endYear: "",
-      runtime: 142,
-      genres: "Drama, Romance",
-    },
-    {
-      id: 11,
-      titleType: "TV Series",
-      primaryTitle: "The Office",
-      originalTitle: "The Office",
-      isAdult: false,
-      startYear: 2005,
-      endYear: 2013,
-      runtime: 22,
-      genres: "Comedy",
-    },
-    {
-      id: 12,
-      titleType: "Movie",
-      primaryTitle: "Interstellar",
-      originalTitle: "Interstellar",
-      isAdult: false,
-      startYear: 2014,
-      endYear: "",
-      runtime: 169,
-      genres: "Adventure, Drama, Sci-Fi",
-    },
-    {
-      id: 13,
-      titleType: "Movie",
-      primaryTitle: "Parasite",
-      originalTitle: "Gisaengchung",
-      isAdult: false,
-      startYear: 2019,
-      endYear: "",
-      runtime: 132,
-      genres: "Drama, Thriller",
-    },
-    {
-      id: 14,
-      titleType: "TV Series",
-      primaryTitle: "Game of Thrones",
-      originalTitle: "Game of Thrones",
-      isAdult: true,
-      startYear: 2011,
-      endYear: 2019,
-      runtime: 57,
-      genres: "Action, Adventure, Drama",
-    },
-    {
-      id: 15,
-      titleType: "Movie",
-      primaryTitle: "Spirited Away",
-      originalTitle: "Sen to Chihiro no Kamikakushi",
-      isAdult: false,
-      startYear: 2001,
-      endYear: "",
-      runtime: 125,
-      genres: "Animation, Adventure, Family",
-    },
-    {
-      id: 16,
-      titleType: "Short",
-      primaryTitle: "Feast",
-      originalTitle: "Feast",
-      isAdult: false,
-      startYear: 2014,
-      endYear: "",
-      runtime: 6,
-      genres: "Animation, Comedy, Drama",
-    },
-    {
-      id: 17,
-      titleType: "Movie",
-      primaryTitle: "Schindler's List",
-      originalTitle: "Schindler's List",
-      isAdult: false,
-      startYear: 1993,
-      endYear: "",
-      runtime: 195,
-      genres: "Biography, Drama, History",
-    },
-    {
-      id: 18,
-      titleType: "Movie",
-      primaryTitle: "The Matrix",
-      originalTitle: "The Matrix",
-      isAdult: false,
-      startYear: 1999,
-      endYear: "",
-      runtime: 136,
-      genres: "Action, Sci-Fi",
-    },
-  ];
-
-  const INITIAL_NODE_0_DATA = [
-    {
-      id: 1,
-      titleType: "Movie",
-      primaryTitle: "Inception",
-      originalTitle: "Inception",
-      isAdult: false,
-      startYear: 2010,
-      endYear: "",
-      runtime: 148,
-      genres: "Action, Sci-Fi",
-    },
-    {
-      id: 2,
-      titleType: "TV Series",
-      primaryTitle: "Breaking Bad",
-      originalTitle: "Breaking Bad",
-      isAdult: false,
-      startYear: 2008,
-      endYear: 2013,
-      runtime: 49,
-      genres: "Crime, Drama",
-    },
-    {
-      id: 5,
-      titleType: "Movie",
-      primaryTitle: "The Dark Knight",
-      originalTitle: "The Dark Knight",
-      isAdult: false,
-      startYear: 2008,
-      endYear: "",
-      runtime: 152,
-      genres: "Action, Crime, Drama",
-    },
-    {
-      id: 6,
-      titleType: "TV Series",
-      primaryTitle: "Stranger Things",
-      originalTitle: "Stranger Things",
-      isAdult: false,
-      startYear: 2016,
-      endYear: "",
-      runtime: 51,
-      genres: "Drama, Fantasy, Horror",
-    },
-    {
-      id: 11,
-      titleType: "TV Series",
-      primaryTitle: "The Office",
-      originalTitle: "The Office",
-      isAdult: false,
-      startYear: 2005,
-      endYear: 2013,
-      runtime: 22,
-      genres: "Comedy",
-    },
-    {
-      id: 12,
-      titleType: "Movie",
-      primaryTitle: "Interstellar",
-      originalTitle: "Interstellar",
-      isAdult: false,
-      startYear: 2014,
-      endYear: "",
-      runtime: 169,
-      genres: "Adventure, Drama, Sci-Fi",
-    },
-    {
-      id: 13,
-      titleType: "Movie",
-      primaryTitle: "Parasite",
-      originalTitle: "Gisaengchung",
-      isAdult: false,
-      startYear: 2019,
-      endYear: "",
-      runtime: 132,
-      genres: "Drama, Thriller",
-    },
-    {
-      id: 14,
-      titleType: "TV Series",
-      primaryTitle: "Game of Thrones",
-      originalTitle: "Game of Thrones",
-      isAdult: true,
-      startYear: 2011,
-      endYear: 2019,
-      runtime: 57,
-      genres: "Action, Adventure, Drama",
-    },
-    {
-      id: 15,
-      titleType: "Movie",
-      primaryTitle: "Spirited Away",
-      originalTitle: "Sen to Chihiro no Kamikakushi",
-      isAdult: false,
-      startYear: 2001,
-      endYear: "",
-      runtime: 125,
-      genres: "Animation, Adventure, Family",
-    },
-    {
-      id: 16,
-      titleType: "Short",
-      primaryTitle: "Feast",
-      originalTitle: "Feast",
-      isAdult: false,
-      startYear: 2014,
-      endYear: "",
-      runtime: 6,
-      genres: "Animation, Comedy, Drama",
-    },
-    {
-      id: 17,
-      titleType: "Movie",
-      primaryTitle: "Schindler's List",
-      originalTitle: "Schindler's List",
-      isAdult: false,
-      startYear: 1993,
-      endYear: "",
-      runtime: 195,
-      genres: "Biography, Drama, History",
-    },
-    {
-      id: 18,
-      titleType: "Movie",
-      primaryTitle: "The Matrix",
-      originalTitle: "The Matrix",
-      isAdult: false,
-      startYear: 1999,
-      endYear: "",
-      runtime: 136,
-      genres: "Action, Sci-Fi",
-    },
-  ];
-
-  const INITIAL_NODE_1_DATA = [
-    {
-      id: 3,
-      titleType: "Short",
-      primaryTitle: "Piper",
-      originalTitle: "Piper",
-      isAdult: false,
-      startYear: 2016,
-      endYear: "",
-      runtime: 6,
-      genres: "Animation, Family",
-    },
-    {
-      id: 7,
-      titleType: "Movie",
-      primaryTitle: "Pulp Fiction",
-      originalTitle: "Pulp Fiction",
-      isAdult: false,
-      startYear: 1994,
-      endYear: "",
-      runtime: 154,
-      genres: "Crime, Drama",
-    },
-    {
-      id: 8,
-      titleType: "Short",
-      primaryTitle: "Bao",
-      originalTitle: "Bao",
-      isAdult: false,
-      startYear: 2018,
-      endYear: "",
-      runtime: 8,
-      genres: "Animation, Family",
-    },
-    {
-      id: 9,
-      titleType: "Movie",
-      primaryTitle: "Fight Club",
-      originalTitle: "Fight Club",
-      isAdult: true,
-      startYear: 1999,
-      endYear: "",
-      runtime: 139,
-      genres: "Drama",
-    },
-    {
-      id: 10,
-      titleType: "Movie",
-      primaryTitle: "Forrest Gump",
-      originalTitle: "Forrest Gump",
-      isAdult: false,
-      startYear: 1994,
-      endYear: "",
-      runtime: 142,
-      genres: "Drama, Romance",
-    },
-    {
-      id: 20,
-      titleType: "Movie",
-      primaryTitle: "Goodfellas",
-      originalTitle: "Goodfellas",
-      isAdult: false,
-      startYear: 1990,
-      endYear: "",
-      runtime: 146,
-      genres: "Biography, Crime, Drama",
-    },
-    {
-      id: 21,
-      titleType: "TV Series",
-      primaryTitle: "The Mandalorian",
-      originalTitle: "The Mandalorian",
-      isAdult: false,
-      startYear: 2019,
-      endYear: "",
-      runtime: 40,
-      genres: "Action, Adventure, Fantasy",
-    },
-    {
-      id: 22,
-      titleType: "Movie",
-      primaryTitle: "Whiplash",
-      originalTitle: "Whiplash",
-      isAdult: false,
-      startYear: 2014,
-      endYear: "",
-      runtime: 106,
-      genres: "Drama, Music",
-    },
-    {
-      id: 23,
-      titleType: "Movie",
-      primaryTitle: "The Prestige",
-      originalTitle: "The Prestige",
-      isAdult: false,
-      startYear: 2006,
-      endYear: "",
-      runtime: 130,
-      genres: "Drama, Mystery, Sci-Fi",
-    },
-    {
-      id: 24,
-      titleType: "Short",
-      primaryTitle: "Paperman",
-      originalTitle: "Paperman",
-      isAdult: false,
-      startYear: 2012,
-      endYear: "",
-      runtime: 7,
-      genres: "Animation, Comedy, Family",
-    },
-    {
-      id: 25,
-      titleType: "Movie",
-      primaryTitle: "Se7en",
-      originalTitle: "Se7en",
-      isAdult: true,
-      startYear: 1995,
-      endYear: "",
-      runtime: 127,
-      genres: "Crime, Drama, Mystery",
-    },
-  ];
-
-  const INITIAL_NODE_2_DATA = [
-    {
-      id: 4,
-      titleType: "Movie",
-      primaryTitle: "The Godfather",
-      originalTitle: "The Godfather",
-      isAdult: false,
-      startYear: 1972,
-      endYear: "",
-      runtime: 175,
-      genres: "Crime, Drama",
-    },
-    {
-      id: 26,
-      titleType: "Movie",
-      primaryTitle: "The Shawshank Redemption",
-      originalTitle: "The Shawshank Redemption",
-      isAdult: false,
-      startYear: 1994,
-      endYear: "",
-      runtime: 142,
-      genres: "Drama",
-    },
-    {
-      id: 27,
-      titleType: "TV Series",
-      primaryTitle: "Chernobyl",
-      originalTitle: "Chernobyl",
-      isAdult: false,
-      startYear: 2019,
-      endYear: 2019,
-      runtime: 330,
-      genres: "Drama, History, Thriller",
-    },
-    {
-      id: 28,
-      titleType: "Movie",
-      primaryTitle: "City of God",
-      originalTitle: "Cidade de Deus",
-      isAdult: true,
-      startYear: 2002,
-      endYear: "",
-      runtime: 130,
-      genres: "Crime, Drama",
-    },
-    {
-      id: 29,
-      titleType: "TV Series",
-      primaryTitle: "The Wire",
-      originalTitle: "The Wire",
-      isAdult: true,
-      startYear: 2002,
-      endYear: 2008,
-      runtime: 59,
-      genres: "Crime, Drama, Thriller",
-    },
-    {
-      id: 30,
-      titleType: "Movie",
-      primaryTitle: "Seven Samurai",
-      originalTitle: "Shichinin no Samurai",
-      isAdult: false,
-      startYear: 1954,
-      endYear: "",
-      runtime: 207,
-      genres: "Action, Adventure, Drama",
-    },
-    {
-      id: 31,
-      titleType: "Movie",
-      primaryTitle: "It's a Wonderful Life",
-      originalTitle: "It's a Wonderful Life",
-      isAdult: false,
-      startYear: 1946,
-      endYear: "",
-      runtime: 130,
-      genres: "Drama, Family, Fantasy",
-    },
-    {
-      id: 32,
-      titleType: "Movie",
-      primaryTitle: "Life Is Beautiful",
-      originalTitle: "La vita è bella",
-      isAdult: false,
-      startYear: 1997,
-      endYear: "",
-      runtime: 116,
-      genres: "Comedy, Drama, Romance",
-    },
-    {
-      id: 33,
-      titleType: "Short",
-      primaryTitle: "La Luna",
-      originalTitle: "La Luna",
-      isAdult: false,
-      startYear: 2011,
-      endYear: "",
-      runtime: 7,
-      genres: "Animation, Family, Fantasy",
-    },
-    {
-      id: 34,
-      titleType: "TV Series",
-      primaryTitle: "Avatar: The Last Airbender",
-      originalTitle: "Avatar: The Last Airbender",
-      isAdult: false,
-      startYear: 2005,
-      endYear: 2008,
-      runtime: 23,
-      genres: "Animation, Action, Adventure",
-    },
-    {
-      id: 35,
-      titleType: "Movie",
-      primaryTitle: "The Silence of the Lambs",
-      originalTitle: "The Silence of the Lambs",
-      isAdult: true,
-      startYear: 1991,
-      endYear: "",
-      runtime: 118,
-      genres: "Crime, Drama, Thriller",
-    },
-  ];
 
   // Store all lists in a single state object
   const [allMovies, setAllMovies] = useState({
-    User: INITIAL_USER_DATA,
-    "Node 0": INITIAL_NODE_0_DATA,
-    "Node 1": INITIAL_NODE_1_DATA,
-    "Node 2": INITIAL_NODE_2_DATA,
+    User: [],
+    "Node 0": [],
+    "Node 1": [],
+    "Node 2": [],
   });
 
+  // Transform backend data format to frontend format
+  const transformBackendData = (backendData) => {
+    if (!Array.isArray(backendData)) return [];
+    return backendData.map((item, index) => ({
+      id: item.tconst || `temp-${index}`, // Use tconst as id, or generate temp id
+      titleType: item.titleType || "",
+      primaryTitle: item.primaryTitle || "",
+      originalTitle: item.originalTitle || "",
+      isAdult: Boolean(item.isAdult),
+      startYear: item.startYear || "",
+      endYear: item.endYear || "",
+      runtime: item.runtimeMinutes || item.runtime || "",
+      genres: item.genres || "",
+    }));
+  };
+
+  // Transform frontend data format to backend format
+  const transformFrontendToBackend = (frontendData) => {
+    const startYear = frontendData.startYear
+      ? parseInt(frontendData.startYear, 10)
+      : null;
+    const endYear =
+      frontendData.endYear && frontendData.endYear !== ""
+        ? parseInt(frontendData.endYear, 10)
+        : null;
+    const runtimeMinutes =
+      frontendData.runtime && frontendData.runtime !== ""
+        ? parseInt(frontendData.runtime, 10)
+        : null;
+
+    return {
+      tconst: frontendData.id || frontendData.tconst || `tt${Date.now()}`, // Use id as tconst, or generate
+      titleType: frontendData.titleType || "",
+      primaryTitle: frontendData.primaryTitle || "",
+      originalTitle: frontendData.originalTitle || "",
+      isAdult: frontendData.isAdult ? 1 : 0, // Convert boolean to 0/1
+      startYear: startYear && !isNaN(startYear) ? startYear : null,
+      endYear: endYear && !isNaN(endYear) ? endYear : null,
+      runtimeMinutes:
+        runtimeMinutes && !isNaN(runtimeMinutes) ? runtimeMinutes : null,
+      genres: frontendData.genres || "",
+    };
+  };
+
+  // Fetch data from backend
+  // Transparency: the frontend always talks to its *local* node using the logical
+  // `readAll` endpoint. The backend is responsible for fragmentation and
+  // aggregation across nodes, so the UI does not need to know which node it is on.
+  const fetchDataFromBackend = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/title-basics/readAll`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch data: ${response.statusText}`);
+      }
+
+      const fetchedData = await response.json();
+      const transformedData = transformBackendData(fetchedData);
+
+      // Same global logical view for all tabs; node details are hidden.
+      setAllMovies({
+        User: transformedData,
+        "Node 0": transformedData,
+        "Node 1": transformedData,
+        "Node 2": transformedData,
+      });
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      setAllMovies({
+        User: [],
+        "Node 0": [],
+        "Node 1": [],
+        "Node 2": [],
+      });
+    }
+  }, []);
+
+  const refreshAllTabs = useCallback(async () => {
+    await fetchDataFromBackend();
+  }, [fetchDataFromBackend]);
+
+  // Fetch data when component mounts and when tab changes
+  useEffect(() => {
+    fetchDataFromBackend();
+  }, [activeTab, fetchDataFromBackend]);
+
   // Log state
-  const [logs, setLogs] = useState([
+  const [logs] = useState([
     { id: 1, timestamp: "10:42:01", message: "Transaction Started: Node 0" },
     {
       id: 2,
@@ -706,12 +212,175 @@ export default function MovieDatabaseApp() {
     setEditingId(null);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this record?")) {
-      setAllMovies((prev) => ({
-        ...prev,
-        [activeTab]: prev[activeTab].filter((m) => m.id !== id),
-      }));
+  // CRUD Operations
+  const handleCreate = async (data) => {
+    try {
+      const backendData = transformFrontendToBackend(data);
+
+      // Validate required fields
+      if (!backendData.tconst || !backendData.startYear) {
+        throw new Error("tconst and startYear are required");
+      }
+
+      // CRUD operations always go to the local node; the backend routes to the
+      // appropriate fragments and peers.
+      const response = await fetch(`${API_BASE_URL}/title-basics/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(backendData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `Failed to create: ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      console.log("Create successful:", result);
+
+      // Refresh data after successful create
+      await refreshAllTabs();
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error("Create error:", error);
+      throw error;
+    }
+  };
+
+  const handleRead = async (id, startYear) => {
+    // Only allow read operations on User tab
+    if (activeTab !== "User") {
+      alert("Read operations are only available on the User tab");
+      return;
+    }
+
+    try {
+      if (!startYear) {
+        // Try to find the movie in current tab to get startYear
+        const movie = allMovies[activeTab].find((m) => m.id === id);
+        if (movie && movie.startYear) {
+          startYear = movie.startYear;
+        } else {
+          throw new Error("startYear is required for read operation");
+        }
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/title-basics/read/${id}?startYear=${startYear}`
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `Failed to read: ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      const transformedData = transformBackendData([data])[0];
+
+      console.log("Read successful:", transformedData);
+
+      // Show alert with read data
+      alert(
+        `Read successful!\nTitle: ${transformedData.primaryTitle}\nType: ${transformedData.titleType}\nYear: ${transformedData.startYear}`
+      );
+
+      return { success: true, data: transformedData };
+    } catch (error) {
+      console.error("Read error:", error);
+      alert(`Read failed: ${error.message}`);
+      throw error;
+    }
+  };
+
+  const handleUpdate = async (id, data) => {
+    try {
+      const backendData = transformFrontendToBackend(data);
+
+      // Validate required fields
+      if (!backendData.startYear) {
+        throw new Error("startYear is required");
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/title-basics/update/${id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(backendData),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `Failed to update: ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      console.log("Update successful:", result);
+
+      // Refresh data after successful update
+      await refreshAllTabs();
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error("Update error:", error);
+      throw error;
+    }
+  };
+
+  const handleDelete = async (id) => {
+    // Only allow delete operations on User tab
+    if (activeTab !== "User") {
+      alert("Delete operations are only available on the User tab");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this record?")) {
+      return;
+    }
+
+    try {
+      // Find the movie to get startYear
+      const movie = allMovies[activeTab].find((m) => m.id === id);
+      if (!movie) {
+        throw new Error("Movie not found");
+      }
+
+      const startYear = movie.startYear;
+      if (!startYear) {
+        throw new Error("startYear is required for delete operation");
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/title-basics/delete/${id}?startYear=${startYear}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `Failed to delete: ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      console.log("Delete successful:", result);
+
+      // Refresh data after successful delete
+      await refreshAllTabs();
 
       // Check if we need to go back a page after deletion
       const currentListLength = allMovies[activeTab].length - 1;
@@ -721,49 +390,47 @@ export default function MovieDatabaseApp() {
       ) {
         setCurrentPage((prev) => prev - 1);
       }
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert(`Delete failed: ${error.message}`);
+      throw error;
     }
   };
 
-  const handleRead = (id) => {
-    console.log(`Reading movie ID: ${id} from ${activeTab}`);
-    // Add logic for manual read here
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    setAllMovies((prev) => {
-      const currentList = prev[activeTab];
-      let updatedList;
+    // Only allow CRUD operations on User tab
+    if (activeTab !== "User") {
+      alert("CRUD operations are only available on the User tab");
+      return;
+    }
 
+    try {
       if (editingId) {
         // Update existing
-        updatedList = currentList.map((m) =>
-          m.id === editingId ? { ...formData, id: editingId } : m
-        );
+        await handleUpdate(editingId, formData);
       } else {
-        // Create new
-        const newId =
-          currentList.length > 0
-            ? Math.max(...currentList.map((m) => m.id), 0) + 1
-            : 1;
-        updatedList = [...currentList, { ...formData, id: newId }];
+        // Create new - generate tconst if not provided
+        const createData = {
+          ...formData,
+          id: formData.id || `tt${Date.now()}`, // Generate tconst if not provided
+        };
+        await handleCreate(createData);
       }
 
-      return {
-        ...prev,
-        [activeTab]: updatedList,
-      };
-    });
-
-    handleCloseModal();
+      handleCloseModal();
+    } catch (error) {
+      alert(`Operation failed: ${error.message}`);
+      console.error("Submit error:", error);
+    }
   };
 
   // Placeholder for test actions
   const runTest = (testName) => {
-    console.log(
-      `Running test: ${testName} with Isolation Level: ${isolationLevel}`
-    );
+    console.log(`Running test: ${testName}`);
     // Add logic here to simulate tests
   };
 
@@ -772,7 +439,7 @@ export default function MovieDatabaseApp() {
       {/* Header Section Removed */}
 
       {/* Main Content Area: Table + Sidebar */}
-      <div className="max-w-[95%] mx-auto flex flex-col lg:flex-row gap-6 mt-4">
+      <div className="w-full max-w-480 mx-auto flex flex-col lg:flex-row gap-6 mt-4">
         {/* Left Column: Table Section */}
         <div className="flex-1 flex flex-col">
           {/* Controls: Tabs & Add Button */}
@@ -811,7 +478,7 @@ export default function MovieDatabaseApp() {
               <table className="w-full text-left border-collapse table-fixed">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="p-2 pl-6 font-semibold text-gray-600 text-sm w-[5%]">
+                    <th className="p-2 pl-6 font-semibold text-gray-600 text-sm w-[10%]">
                       ID
                     </th>
                     <th className="p-2 font-semibold text-gray-600 text-sm w-[10%]">
@@ -890,7 +557,9 @@ export default function MovieDatabaseApp() {
                         <td className="p-2">
                           <div className="flex justify-center gap-2">
                             <button
-                              onClick={() => handleRead(movie.id)}
+                              onClick={() =>
+                                handleRead(movie.id, movie.startYear)
+                              }
                               className="p-1.5 text-gray-600 hover:bg-gray-100 border border-gray-200 rounded transition-colors"
                               title="Read"
                             >
@@ -930,7 +599,7 @@ export default function MovieDatabaseApp() {
                     ))}
 
                   {currentMovies.length === 0 && (
-                    <tr className="h-[30rem]">
+                    <tr className="h-120">
                       <td
                         colSpan={activeTab === "User" ? "10" : "9"}
                         className="p-8 text-center text-gray-400"
@@ -1009,33 +678,11 @@ export default function MovieDatabaseApp() {
         </div>
 
         {/* Right Column: Test Cases */}
-        <div className="w-full lg:w-72 flex-shrink-0 space-y-6 lg:mt-14">
+        <div className="w-full lg:w-72 shrink-0 space-y-6 lg:mt-14">
           <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-5 sticky top-6">
             <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
               Test Cases
             </h3>
-
-            {/* Isolation Level Selection */}
-            <div className="mb-6">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Isolation Level
-              </h4>
-              <div className="relative">
-                <select
-                  value={isolationLevel}
-                  onChange={(e) => setIsolationLevel(e.target.value)}
-                  className="w-full appearance-none bg-white border border-gray-300 hover:border-gray-400 px-4 py-2 pr-8 rounded leading-tight focus:outline-none focus:shadow-outline text-sm text-gray-700"
-                >
-                  <option>Read Uncommitted</option>
-                  <option>Read Committed</option>
-                  <option>Read Repeatable</option>
-                  <option>Serializable</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <ChevronDown size={14} />
-                </div>
-              </div>
-            </div>
 
             {/* Concurrency Tests */}
             <div className="mb-6">
