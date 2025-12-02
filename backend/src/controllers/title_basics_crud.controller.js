@@ -1,13 +1,10 @@
-// controllers/title_basics.controller.js
-
-// IMPORT THE SERVICE, NOT THE CONTROLLER
 import * as titleService from '../services/title_basics_crud.services.js';
 import { startTransaction, aggregateAllTitlesFromPeers, getHostNodeUrl, isHost, startReadTitle, broadcastResetDatabases} from '../services/internal.service.js'; 
 
 export const readTitle = async (req, res) => {
   const { id } = req.params;
   // optional
-  const { startYear, delay } = req.query; 
+  const { startYear, delay } = req.body; 
 
   try {
     const titleData = await startReadTitle(id, startYear, delay);
