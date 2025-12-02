@@ -48,23 +48,6 @@ async function connectWithRetry(pool) {
   }
 }
 
-function startKeepAlive() {
-  setInterval(async () => {
-    if (!pool) return;
-
-    try {
-      await pool.query('SELECT 1');
-      console.log("Keepalive OK");
-    } catch (error) {
-      console.error("Keepalive failed:", error);
-      console.log("Reinitializing DB pool...");
-
-      await closeDB();
-      await initDB();
-    }
-  }, 30000);
-}
-
 export const initDB = async () => {
   if (pool) return;
 
@@ -81,7 +64,8 @@ export const initDB = async () => {
     connectionLimit: 10,
     queueLimit: 0,
     enableKeepAlive: true,
-    keepAliveInitialDelay: 0,
+    keepAliveInitialDelay: 10000,
+    idleTimeout: 20000,
   });
 
   try {
