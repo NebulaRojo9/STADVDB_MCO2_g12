@@ -1,5 +1,5 @@
 ### CREATE a new title
-POST http://localhost:3000/title-basics/create?delay=10000
+POST http://localhost:3000/title-basics/create
 Content-Type: application/json
 
 {
@@ -56,3 +56,6 @@ Content-Type: application/json
 
 ### DELETE a title by ID
 DELETE http://localhost:3000/title-basics/delete/tt1234569?startYear=2025
+
+### CONCURRENCY TEST
+GET http://localhost:3000/test/concurrency-1

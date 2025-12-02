@@ -4,7 +4,7 @@ export const registry = {
   CREATE_TITLE: {
     lockType: 'EXCLUSIVE',
     validate: async (payload) => {
-      await title_crud.canBeCreated(payload.data, payload.delay);
+      await title_crud.canBeCreated(payload.data);
       return true
     },
     execute: async (payload) => {
@@ -14,7 +14,7 @@ export const registry = {
   READ_TITLE: {
     lockType: 'SHARED',
     validate: async (payload) => {
-      await title_crud.findById(payload.id, payload.delay);
+      await title_crud.findById(payload.id);
       return true
     },
     execute: async (payload) => {
@@ -24,7 +24,7 @@ export const registry = {
   UPDATE_TITLE: {
     lockType: 'EXCLUSIVE',
     validate: async (payload) => {
-      const title = await title_crud.findById(payload.id, payload.delay);
+      const title = await title_crud.findById(payload.id);
       return true
     },
     execute: async (payload) => {
@@ -34,7 +34,7 @@ export const registry = {
   DELETE_TITLE: {
     lockType: 'EXCLUSIVE',
     validate: async (payload) => {
-      const title = await title_crud.findById(payload.id, payload.delay);
+      const title = await title_crud.findById(payload.id);
       return true
     },
     execute: async (payload) => {
