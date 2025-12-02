@@ -304,7 +304,12 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
 // TODO: ADD CHECK FOR MULTIPLE CALLS
 export const handleCommit = async (transactionId) => {
   const processTrace = createTrace();
-  walServices.writeLog(transactionId, "UNKNOWN", "COMMIT", {});
+  const receivedTransaction = pendingTransactions.get(transactionId);
+  let receivedTransactionAction = "UNKNOWN"
+  if (receivedTransaction) {
+    receivedTransactionAction = receivedTransaction.payload.action
+  }
+  walServices.writeLog(transactionId, receivedTransactionAction, "COMMIT", {});
   console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, "UNKNOWN", "COMMIT", {}`);
   processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, "UNKNOWN", "COMMIT", {}`);
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
@@ -358,7 +363,12 @@ export const handleCommit = async (transactionId) => {
 
 export const handleAbort = async (transactionId) => {
   const processTrace = createTrace();
-  walServices.writeLog(transactionId, 'UNKNOWN', 'ABORT', {});
+  const receivedTransaction = pendingTransactions.get(transactionId);
+  let receivedTransactionAction = "UNKNOWN"
+  if (receivedTransaction) {
+    receivedTransactionAction = receivedTransaction.payload.action
+  }
+  walServices.writeLog(transactionId, receivedTransactionAction, "ABORT", {});
   console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, 'UNKNOWN', 'ABORT', {}`);
   processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, 'UNKNOWN', 'ABORT', {}`);
   processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
