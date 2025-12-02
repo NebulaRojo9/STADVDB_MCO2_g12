@@ -4,8 +4,8 @@ import lockManager from './lock_manager.js';
 import { registry } from './crud_registry.js'
 import * as walServices from './wal.service.js'
 import 'dotenv/config';
-import { setTimeout as sleep } from 'timers/promises';
 import { createTrace } from '../utils/trace.js';
+import { checkTestState } from './test.services.js';
 
 const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 
