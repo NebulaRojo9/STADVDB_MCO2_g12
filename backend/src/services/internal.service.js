@@ -52,14 +52,15 @@ export const broadcastResetDatabases = async () => {
   return null;
 }
 
-export const startReadTitle = async (id, startYear = undefined) => {
+export const startReadTitle = async (id, startYear = undefined, delay = 0) => {
   // No start year specified for read title, but if it is we can skip this part
   if (!startYear) {
     // Check self if record exists
     const localResult = await startTransaction({
       action: 'READ_TITLE',
       id: id,
-      startYear: startYear 
+      startYear: startYear,
+      delay: delay
     }, true); 
 
     if (localResult.success && localResult.data) {
@@ -71,7 +72,8 @@ export const startReadTitle = async (id, startYear = undefined) => {
   const payload = {
     action: 'READ_TITLE',
     id: id,
-    startYear: startYear
+    startYear: startYear,
+    delay: delay
   };
 
   const result = await startTransaction(payload);

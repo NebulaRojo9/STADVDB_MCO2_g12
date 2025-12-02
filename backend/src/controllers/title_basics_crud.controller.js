@@ -83,7 +83,8 @@ export const createTitle = async (req, res) => {
       action: 'CREATE_TITLE',     // Must match registry key
       id: data.tconst,            // LOCK ID: We lock this specific Title ID
       data: data,                 // The payload to write
-      startYear: data.startYear   // SHARD KEY: Used to route to correct nodes
+      startYear: data.startYear,  // SHARD KEY: Used to route to correct nodes
+      delay: data.delay           // DELAY for simulation in CRUD
     });
 
     // 3. Handle Result
@@ -119,7 +120,8 @@ export const updateTitle = async (req, res) => {
       action: 'UPDATE_TITLE',      // Must match crud_registry.js key
       id: id,                      // Used for Locking resource
       data: data,                  // The actual data to update
-      startYear: data.startYear    // Used for your Fragmentation logic
+      startYear: data.startYear,   // Used for your Fragmentation logic
+      delay: data.delay            // DELAY for simulation in CRUD
     });
 
     // 2. Respond to Client based on 2PC Result
@@ -153,7 +155,8 @@ export const deleteTitle = async (req, res) => {
     const result = await startTransaction({
       action: 'DELETE_TITLE',      // Must match crud_registry.js key
       id: id,                      // Used for Locking resource
-      startYear: data.startYear    // Used for your Fragmentation logic
+      startYear: data.startYear,   // Used for your Fragmentation logic
+      delay: data.delay            // DELAY for simulation in CRUD
     });
 
     // 2. Respond to Client based on 2PC Result

@@ -1,8 +1,12 @@
 import { getDB } from '../config/connect.js'
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
 // Has to be fixed for reading data from node 2 that belongs in node 3 (i.e. need to access node 1 pa)
-export async function findById(id) {
+export async function findById(id, delay = 0) {
   const pool = await getDB(); // Ensure we await the connection
+
+  if (delay > 0) await sleep(delay);
 
   const [rows] = await pool.query(
     'SELECT * FROM title_basics WHERE tconst = ?', 
@@ -23,8 +27,10 @@ export async function findAllFromNode() {
   return rows;
 }
 
-export async function canBeCreated(data) {
+export async function canBeCreated(data, delay = 0) {
   const pool = await getDB();
+
+  if (delay > 0) await sleep(delay);
 
   if (!data.tconst) {
     throw new Error("tconst (primary key) is required");
@@ -43,8 +49,10 @@ export async function canBeCreated(data) {
   return true; // validation passed
 }
 
-export async function createTitle(data) {
+export async function createTitle(data, delay = 0) {
   const pool = await getDB();
+
+  if (delay > 0) await sleep(delay);
 
   const columns = Object.keys(data);
   const values = Object.values(data);
@@ -61,8 +69,10 @@ export async function createTitle(data) {
   return result;
 }
 
-export async function updateTitle(id, data) {
+export async function updateTitle(id, data, delay = 0) {
   const pool = await getDB();
+
+  if (delay > 0) await sleep(delay);
 
   const columns = Object.keys(data);
   const values = Object.values(data);
@@ -85,8 +95,10 @@ export async function updateTitle(id, data) {
   return result;
 }
 
-export async function deleteTitle(id) {
+export async function deleteTitle(id, delay = 0) {
   const pool = await getDB();
+
+  if (delay > 0) await sleep(delay);
 
   const sql = `
   DELETE FROM title_basics 
