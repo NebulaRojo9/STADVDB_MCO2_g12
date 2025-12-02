@@ -70,7 +70,6 @@ export const initDB = async () => {
 
   try {
     await connectWithRetry(pool);
-    startKeepAlive();
     console.log('DB Pool initialized successfully.');
   } catch (error) {
     console.error('Database initialization failed. Shutting down active pools.');
