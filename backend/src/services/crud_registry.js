@@ -8,7 +8,7 @@ export const registry = {
       return true
     },
     execute: async (payload) => {
-      await title_crud.createTitle(payload.data, payload.delay);
+      return await title_crud.createTitle(payload.data, payload.delay); // to return payload data
     }
   },
   READ_TITLE: {
@@ -28,7 +28,7 @@ export const registry = {
       return true
     },
     execute: async (payload) => {
-      await title_crud.updateTitle(payload.id, payload.data, payload.delay);
+      return await title_crud.updateTitle(payload.id, payload.data, payload.delay);
     }
   },
   DELETE_TITLE: {
@@ -38,7 +38,7 @@ export const registry = {
       return true
     },
     execute: async (payload) => {
-      await title_crud.deleteTitle(payload.id, payload.delay);
+      return await title_crud.deleteTitle(payload.id, payload.delay);
     }
   }
 }
