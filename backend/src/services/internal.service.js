@@ -52,15 +52,17 @@ export const isHost = () => {
 
 export const aggregateAllTitlesFromPeers = async (hostURL) => {
   if (!hostURL) {
+    let responses = []
     for (const peerUrl of PEER_NODES) {
       try {
         const response = await axios.get(`${peerUrl}/title-basics/readAll`)
-        return response.data
+        responses = responses.concat(response.data)
       } catch (err) {
-      console.error(`Failed to fetch data from peer ${hostURL}:`, err.message)
-      return [];
+        console.error(`Failed to fetch data from peer ${peerURL}:`, err.message)
+        continue;
       }
-    } 
+    }
+    return responses;
   }
 
   try {
