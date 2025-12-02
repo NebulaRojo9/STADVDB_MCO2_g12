@@ -187,7 +187,8 @@ const fetchDataFromBackend = useCallback(async () => {
       });
     }
 
-    if (responseJson.result && responseJson.result.message) {
+    // Writes or reads
+    if (responseJson.result) {
       // Log the result message
       if (
         responseJson.result.message &&
@@ -206,6 +207,33 @@ const fetchDataFromBackend = useCallback(async () => {
             id: crypto.randomUUID(),
             timestamp,
             message: trace.msg || JSON.stringify(trace), 
+          });
+        });
+      }
+    }
+
+    // Test cases
+    if (responseJson.scenario) {
+      newEntries.push({
+        id: crypto.randomUUID(),
+        timestamp,
+        message: `TEST: ${responseJson.scenario}`,
+      });
+
+      if (responseJson.expectation) {
+        newEntries.push({
+          id: crypto.randomUUID(),
+          timestamp,
+          message: `Expects: ${responseJson.expectation}`,
+        });
+      }
+
+      if (Array.isArray(responseJson.results)) {
+        responseJson.results.forEach((res) => {
+          newEntries.push({
+            id: crypto.randomUUID(),
+            timestamp,
+            message: `${res.status} ${res.name}: ${res.duration}ms`,
           });
         });
       }
@@ -508,9 +536,41 @@ const fetchDataFromBackend = useCallback(async () => {
   };
 
   // Placeholder for test actions
-  const runTest = (testName) => {
-    console.log(`Running test: ${testName}`);
-    // Add logic here to simulate tests
+  const runTest = async (testName) => {
+    let endpoint = "";
+    
+    switch (testName) {
+      case "Concurrent Reads":
+        endpoint = "/test/concurrency-1";
+        break;
+      case "Concurrent Write and Read":
+        endpoint = "/test/concurrency-2";
+        break;
+      case "Concurrent Writes":
+        endpoint = "/test/concurrency-3";
+        break;
+      // TODO: ADD RECOVERY CASE
+      default:
+        console.warn("Unknown test case:", testName);
+        return;
+    }
+
+    try {
+      setLogs([]); 
+      
+      const response = await fetch(`${DEFAULT_API_BASE_URL}${endpoint}`);
+      const result = await response.json();
+      
+      // Send whole JSON
+      appendLogMessagesFromResponse(result);
+    } catch (error) {
+      console.error("Test failed:", error);
+      setLogs(prev => [...prev, {
+        id: crypto.randomUUID(),
+        timestamp: new Date().toLocaleTimeString(),
+        message: `Test Error: ${error.message}`
+      }]);
+    }
   };
 
   return (
