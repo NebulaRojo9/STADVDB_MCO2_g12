@@ -47,11 +47,21 @@ export const getHostNodeUrl = () => {
 }
 
 export const isHost = () => {
-  return process.env.NODE_A_URL === process.env.HOST_URL;
+  return process.env.NODE_A_URL === process.env.NODE_URL;
 }
 
 export const aggregateAllTitlesFromPeers = async (hostURL) => {
-  if (!hostURL) return [];
+  if (!hostURL) {
+    for (const peerUrl of PEER_NODES) {
+      try {
+        const response = await axios.get(`${peerUrl}/title-basics/readAll`)
+        return response.data
+      } catch (err) {
+      console.error(`Failed to fetch data from peer ${hostURL}:`, err.message)
+      return [];
+      }
+    } 
+  }
 
   try {
       const response = await axios.get(`${hostURL}/title-basics/readAll`);

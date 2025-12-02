@@ -64,12 +64,12 @@ Content-Type: application/json
 
 
 ### READ a single title by ID
-GET http://localhost:3000/title-basics/read/tt0000001?startYear=2025&delay=1
+GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025&delay=1
 ###
 GET http://localhost:3000/title-basics/read/tt12345?startYear=2025&delay=10
 
 ### READ ALL titles
-GET http://localhost:3002/title-basics/readAll
+GET http://localhost:3001/title-basics/readAll
 
 ### READ ALL titles (From Node variant)
 GET http://localhost:3000/title-basics/readAllFromNode
@@ -88,6 +88,7 @@ Content-Type: application/json
   "runtimeMinutes": 130,
   "genres": "Action,Drama"
 }
+
 ### UPDATE a title by ID
 PUT http://localhost:3000/title-basics/update/tt1234567?delay=5000
 Content-Type: application/json
