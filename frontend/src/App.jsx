@@ -178,6 +178,7 @@ const fetchDataFromBackend = useCallback(async () => {
 
     const newEntries = [];
 
+    // Main success message
     if (responseJson.message) {
       newEntries.push({
         id: crypto.randomUUID(),
@@ -187,11 +188,27 @@ const fetchDataFromBackend = useCallback(async () => {
     }
 
     if (responseJson.result && responseJson.result.message) {
-      newEntries.push({
-        id: crypto.randomUUID(),
-        timestamp,
-        message: responseJson.result.message,
-      });
+      // Log the result message
+      if (
+        responseJson.result.message &&
+        responseJson.result.message !== responseJson.message
+      ) {
+        newEntries.push({
+          id: crypto.randomUUID(),
+          timestamp,
+          message: responseJson.result.message,
+        });
+      }
+      // Log the processTrace
+      if (Array.isArray(responseJson.result.processTrace)) {
+        responseJson.result.processTrace.forEach((trace) => {
+          newEntries.push({
+            id: crypto.randomUUID(),
+            timestamp,
+            message: trace.msg || JSON.stringify(trace), 
+          });
+        });
+      }
     }
 
     if (newEntries.length > 0) {
