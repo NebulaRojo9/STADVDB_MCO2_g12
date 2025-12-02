@@ -304,26 +304,26 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
 // TODO: ADD CHECK FOR MULTIPLE CALLS
 export const handleCommit = async (transactionId) => {
   const processTrace = createTrace();
-  const receivedTransaction = pendingTransactions.get(transactionId);
-  let receivedTransactionAction = "UNKNOWN"
-  if (receivedTransaction) {
-    receivedTransactionAction = receivedTransaction.payload.action
-  }
-  walServices.writeLog(transactionId, receivedTransactionAction, "COMMIT", {});
-  console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, "UNKNOWN", "COMMIT", {}`);
-  processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, "UNKNOWN", "COMMIT", {}`);
-  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
-  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
-
 
   if (committedHistory.has(transactionId)) {
     return { status: 'COMMITTED_ALREADY', processTrace: processTrace.get()};
   }
 
   const txState = pendingTransactions.get(transactionId);
-  if (!txState) {
+  let action = "UNKNOWN";
+  if (txState) {
+    action = txState.payload.action
+    walServices.writeLog(transactionId, action, "COMMIT", txState.payload);
+    console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${action}, "COMMIT", ${txState.payload}`);
+    processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${action}, "COMMIT", ${txState.payload}`);
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
+    console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [COMMIT]`)
+  } else {
     processTrace.log(`No pending transaction found for ID: ${transactionId}`);
     console.error(`No pending transaction found for ID: ${transactionId}`);
+    // We log an error to WAL, but we can't log the specific action or payload
+    walServices.writeLog(transactionId, "UNKNOWN", "COMMIT_ERROR", { error: "No pending transaction found" });
+    
     return { status: "ERROR", processTrace: processTrace.get()}
   }
   const { payload, resourceId } = txState;
@@ -363,20 +363,16 @@ export const handleCommit = async (transactionId) => {
 
 export const handleAbort = async (transactionId) => {
   const processTrace = createTrace();
-  const receivedTransaction = pendingTransactions.get(transactionId);
-  let receivedTransactionAction = "UNKNOWN"
-  if (receivedTransaction) {
-    receivedTransactionAction = receivedTransaction.payload.action
-  }
-  walServices.writeLog(transactionId, receivedTransactionAction, "ABORT", {});
-  console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, 'UNKNOWN', 'ABORT', {}`);
-  processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, 'UNKNOWN', 'ABORT', {}`);
-  processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
-  console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
 
   const txState = pendingTransactions.get(transactionId);
-
+  let action = "UNKNOWN"
   if (txState && txState.resourceId) {
+    action = txState.payload.action
+    walServices.writeLog(transactionId, action, "ABORT", txState.payload);
+    console.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${action}, "ABORT", ${txState.payload}`);
+    processTrace.log(`[WAL:${process.env.PORT}] LOG Updated: ${transactionId}, ${action}, "ABORT", ${txState.payload}`);
+    processTrace.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
+    console.log(`[TM:${process.env.PORT}] Tx ${transactionId} received [ABORT]`)
     await lockManager.release(txState.resourceId, transactionId);
     processTrace.log(`[LM:${process.env.PORT}] Tx ${transactionId} lock released`)
     console.log(`[LM:${process.env.PORT}] Tx ${transactionId} lock released`)
