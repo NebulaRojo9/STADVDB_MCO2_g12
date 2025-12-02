@@ -53,7 +53,7 @@ export const readTitleAll = async (req, res) => {
 
     return res.status(200).json(finalTitles);
   } catch (err) {
-    console.error('Controller Error:'.err);
+    console.error('Controller Error:', err.message);
     return res.status(500).json({ error: err });
   }
 };
@@ -65,7 +65,7 @@ export const readTitleFromNode = async (req, res) => {
 
     return res.status(200).json(titles);
   } catch (err) {
-    console.error('Controller Error:'.err);
+    console.error('Controller Error:', err.message);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
