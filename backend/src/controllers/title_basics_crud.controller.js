@@ -2,8 +2,6 @@ import * as titleService from '../services/title_basics_crud.services.js';
 import {
   startTransaction,
   aggregateAllTitlesFromPeers,
-  getHostNodeUrl,
-  isHost,
   startReadTitle,
   broadcastResetDatabases,
 } from '../services/internal.service.js';
@@ -30,31 +28,25 @@ export const readTitle = async (req, res) => {
 export const readTitleAll = async (req, res) => {
   try {
     let localTitles = await titleService.findAllFromNode();
-    let finalTitles = localTitles;
+    const peerTitles = await aggregateAllTitlesFromPeers();
 
-    if (!isHost()) {
-      // if it is NOT host
-      const hostURL = getHostNodeUrl();
+    const combined = localTitles.concat(peerTitles);
 
-      if (hostURL) {
-        const peerTitles = await aggregateAllTitlesFromPeers(hostURL);
-
-        const combined = localTitles.concat(peerTitles);
-
-        // De-duplicating
-        const uniqueTitles = {};
-        combined.forEach((title) => {
-          uniqueTitles[title.tconst] = title;
-        });
-
-        finalTitles = Object.values(uniqueTitles);
+    // De-duplicate
+    const uniqueTitles = {};
+    combined.forEach((title) => {
+      if (title && title.tconst) {
+        uniqueTitles[title.tconst] = title;
       }
-    }
+    });
 
+    const finalTitles = Object.values(uniqueTitles);
+
+    console.log(`[READ] Returning ${finalTitles.length} total rows.`);
     return res.status(200).json(finalTitles);
   } catch (err) {
     console.error('Controller Error:', err.message);
-    return res.status(500).json({ error: err });
+    return res.status(500).json({ error: err.message });
   }
 };
 

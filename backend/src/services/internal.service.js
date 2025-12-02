@@ -42,36 +42,28 @@ const startCleanUpService = async () => {
 
 startCleanUpService();
 
-export const getHostNodeUrl = () => {
-  return process.env.NODE_A_URL;
-}
+export const aggregateAllTitlesFromPeers = async () => {
+  let responses = [];
 
-export const isHost = () => {
-  return process.env.NODE_A_URL === process.env.NODE_URL;
-}
+  const peersToQuery = PEER_NODES.filter(pUrl => 
+    pUrl !== process.env.NODE_URL
+  );
 
-export const aggregateAllTitlesFromPeers = async (hostURL) => {
-  if (hostURL !== process.env.NODE_URL) {
-    let responses = []
-    for (const peerUrl of PEER_NODES) {
-      try {
-        const response = await axios.get(`${peerUrl}/title-basics/readAll`)
-        responses = responses.concat(response.data)
-      } catch (err) {
-        console.error(`Failed to fetch data from peer ${peerUrl}:`, err.message)
-        continue;
+  console.log(`[AGGREGATE] Querying: ${peersToQuery.join(', ')}`);
+
+  for (const peerUrl of peersToQuery) {
+    try {
+      const response = await axios.get(`${peerUrl}/title-basics/readAll`);
+      if (Array.isArray(response.data)) {
+        responses = responses.concat(response.data);
       }
-    }
-    return responses;
-  }
-
-  try {
-      const response = await axios.get(`${hostURL}/title-basics/readAll`);
-      return response.data
     } catch (err) {
-      console.error(`Failed to fetch data from peer ${hostURL}:`, err.message)
-      return [];
+      console.error(`Failed to fetch data from peer ${peerUrl}:`, err.message);
+      continue;
     }
+  }
+  
+  return responses;
 }
 
 export const broadcastResetDatabases = async () => {
