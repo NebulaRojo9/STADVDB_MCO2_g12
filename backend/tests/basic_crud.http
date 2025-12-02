@@ -64,7 +64,7 @@ Content-Type: application/json
 
 
 ### READ a single title by ID
-GET http://localhost:3000/title-basics/read/tt1234567?startYear=2025&delay=1
+GET http://localhost:3000/title-basics/read/tt1234567?startYear=1900&delay=1
 ###
 GET http://localhost:3000/title-basics/read/tt12345?startYear=2025&delay=10
 
