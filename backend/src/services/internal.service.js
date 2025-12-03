@@ -481,17 +481,17 @@ const shouldReplicateToNode = (peerUrl, payload) => {
   
   // 1. MASTER NODE (Node 1) - Always accepts everything
   // Replace with your actual Master URL/Env check
-  if (peerUrl.includes(process.env.NODE1_HOST) || peerUrl.includes("3001")) { 
+  if (peerUrl.includes(process.env.NODE_A_URL)) { 
     return true; 
   }
 
   // 2. FRAGMENT A (Node 2) - Only accepts < 2000
-  if (peerUrl.includes(process.env.NODE2_HOST) || peerUrl.includes("3002")) {
+  if (peerUrl.includes(process.env.NODE_B_URL)) {
     return year < 2000;
   }
 
   // 3. FRAGMENT B (Node 3) - Only accepts >= 2000
-  if (peerUrl.includes(process.env.NODE3_HOST) || peerUrl.includes("3003")) {
+  if (peerUrl.includes(process.env.NODE_C_URL)) {
     return year >= 2000;
   }
 
