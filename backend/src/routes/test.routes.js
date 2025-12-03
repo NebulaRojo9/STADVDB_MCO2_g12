@@ -16,7 +16,7 @@ router.get('/concurrency-2', concurrencyTestController.testWriteRead);
 router.get('/concurrency-3', concurrencyTestController.testWriteWrite);
 
 // Crash test routes
-router.post('/crash-1/:testCheckpoint', crashTestController.writeNodeFCrashF);
-router.post('/crash-2/:testCheckpoint', crashTestController.writeNodeCCrashF)
+router.get('/crash-1/:testCheckpoint', crashTestController.writeNodeFCrashF);
+router.get('/crash-2/:testCheckpoint', crashTestController.writeNodeCCrashF)
 
 export default router;
