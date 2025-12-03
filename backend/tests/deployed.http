@@ -1,0 +1,115 @@
+### CREATE a new title
+POST http://ccscloud.dlsu.edu.ph:60163/title-basics/create
+Content-Type: application/json
+
+{
+  "tconst": "tt1234567",
+  "titleType": "movie",
+  "primaryTitle": "Test Movie to A",
+  "originalTitle": "Should be in B",
+  "isAdult": true,
+  "startYear": 1995,
+  "endYear": null,
+  "runtimeMinutes": 120,
+  "genres": "Drama"
+}
+### CREATE a new title
+POST http://ccscloud.dlsu.edu.ph:60163/title-basics/create
+Content-Type: application/json
+
+{
+  "tconst": "tt1234568",
+  "titleType": "movie",
+  "primaryTitle": "Test Movie to A",
+  "originalTitle": "Should be in C",
+  "isAdult": true,
+  "startYear": 2020,
+  "endYear": null,
+  "runtimeMinutes": 120,
+  "genres": "Drama"
+}
+
+
+### CREATE a new title
+POST http://ccscloud.dlsu.edu.ph:60164/title-basics/create
+Content-Type: application/json
+
+{
+  "tconst": "tt1234569",
+  "titleType": "movie",
+  "primaryTitle": "Test Movie to B",
+  "originalTitle": "Should be in C",
+  "isAdult": true,
+  "startYear": 2020,
+  "endYear": null,
+  "runtimeMinutes": 120,
+  "genres": "Drama"
+}
+
+### CREATE a new title
+POST http://ccscloud.dlsu.edu.ph:60163/title-basics/create
+Content-Type: application/json
+
+{
+  "tconst": "tt1234570",
+  "titleType": "movie",
+  "primaryTitle": "Test Movie to C",
+  "originalTitle": "Should be in B",
+  "isAdult": true,
+  "startYear": 1995,
+  "endYear": null,
+  "runtimeMinutes": 120,
+  "genres": "Drama"
+}
+
+
+### READ a single title by ID
+GET http://ccscloud.dlsu.edu.ph:60163/title-basics/read/tt1234567?startYear=2100&delay=1
+###
+GET http://ccscloud.dlsu.edu.ph:60163/title-basics/read/tt12345?startYear=2025&delay=10
+
+### READ ALL titles
+GET http://ccscloud.dlsu.edu.ph:60164/title-basics/readAll
+
+### READ ALL titles (From Node variant)
+GET http://ccscloud.dlsu.edu.ph:60163/title-basics/readAllFromNode
+
+### UPDATE a title by ID
+PUT http://ccscloud.dlsu.edu.ph:60164/title-basics/update/tt1234567?delay=0
+Content-Type: application/json
+
+{
+  "titleType": "movie",
+  "primaryTitle": "UPDATED tt1234567",
+  "originalTitle": "UPDATED tt1234567",
+  "isAdult": true,
+  "startYear": 1995,
+  "endYear": null,
+  "runtimeMinutes": 130,
+  "genres": "Action,Drama"
+}
+
+### UPDATE a title by ID
+PUT http://ccscloud.dlsu.edu.ph:60163/title-basics/update/tt1234567?delay=5000
+Content-Type: application/json
+
+{
+  "titleType": "movie",
+  "primaryTitle": "DELAY 5s",
+  "originalTitle": "Updated Movie Original",
+  "isAdult": 0,
+  "startYear": 2026,
+  "endYear": null,
+  "runtimeMinutes": 130,
+  "genres": "Action,Drama"
+}
+
+### DELETE a title by ID
+DELETE http://ccscloud.dlsu.edu.ph:60163/title-basics/delete/tt1234569?startYear=2025
+
+### CONCURRENCY TEST
+GET http://ccscloud.dlsu.edu.ph:60163/test/concurrency-1
+### CONCURRENCY TEST
+GET http://ccscloud.dlsu.edu.ph:60163/test/concurrency-2
+### CONCURRENCY TEST
+GET http://ccscloud.dlsu.edu.ph:60163/test/concurrency-3
