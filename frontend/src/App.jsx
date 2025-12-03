@@ -180,7 +180,7 @@ const fetchDataFromBackend = useCallback(async () => {
     // Main success message
     if (responseJson.message) {
       newEntries.push({
-        id: crypto.randomUUID(),
+        id: Date.now() + Math.random().toString(),
         timestamp,
         message: responseJson.message,
       });
@@ -194,7 +194,7 @@ const fetchDataFromBackend = useCallback(async () => {
         responseJson.result.message !== responseJson.message
       ) {
         newEntries.push({
-          id: crypto.randomUUID(),
+          id: Date.now() + Math.random().toString(),
           timestamp,
           message: responseJson.result.message,
         });
@@ -203,7 +203,7 @@ const fetchDataFromBackend = useCallback(async () => {
       if (Array.isArray(responseJson.result.processTrace)) {
         responseJson.result.processTrace.forEach((trace) => {
           newEntries.push({
-            id: crypto.randomUUID(),
+            id: Date.now() + Math.random().toString(),
             timestamp,
             message: trace.msg || JSON.stringify(trace), 
           });
@@ -214,14 +214,14 @@ const fetchDataFromBackend = useCallback(async () => {
     // Test cases
     if (responseJson.scenario) {
       newEntries.push({
-        id: crypto.randomUUID(),
+        id: Date.now() + Math.random().toString(),
         timestamp,
         message: `TEST: ${responseJson.scenario}`,
       });
 
       if (responseJson.expectation) {
         newEntries.push({
-          id: crypto.randomUUID(),
+          id: Date.now() + Math.random().toString(),
           timestamp,
           message: `Expects: ${responseJson.expectation}`,
         });
@@ -230,7 +230,7 @@ const fetchDataFromBackend = useCallback(async () => {
       if (Array.isArray(responseJson.results)) {
         responseJson.results.forEach((res) => {
           newEntries.push({
-            id: crypto.randomUUID(),
+            id: Date.now() + Math.random().toString(),
             timestamp,
             message: `${res.status} ${res.name}: ${res.duration}ms`,
           });
@@ -565,7 +565,7 @@ const fetchDataFromBackend = useCallback(async () => {
     } catch (error) {
       console.error("Test failed:", error);
       setLogs(prev => [...prev, {
-        id: crypto.randomUUID(),
+        id: Date.now() + Math.random().toString(),
         timestamp: new Date().toLocaleTimeString(),
         message: `Test Error: ${error.message}`
       }]);
