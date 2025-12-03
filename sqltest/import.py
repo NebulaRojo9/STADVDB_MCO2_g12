@@ -144,4 +144,4 @@ upload_to_node("NODE 1 (Master)", config_node1, basics_all)
 upload_to_node("NODE 2 (< 2000)", config_node2, basics_lt)
 upload_to_node("NODE 3 (>= 2000)", config_node3, basics_gte)
 
-print("🎉 All operations finished.")
+print("All operations finished.")
