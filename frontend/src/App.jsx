@@ -229,11 +229,36 @@ const fetchDataFromBackend = useCallback(async () => {
 
       if (Array.isArray(responseJson.results)) {
         responseJson.results.forEach((res) => {
-          newEntries.push({
-            id: Date.now() + Math.random().toString(),
-            timestamp,
-            message: `${res.status} ${res.name}: ${res.duration}ms`,
-          });
+          // CASE A: Crash Test Result (Nested NetworkError)
+          if (res.NetworkError) {
+             const errorDetails = res.NetworkError;
+             const errorMsg = errorDetails.details || errorDetails.error || "Unknown Error";
+             
+             newEntries.push({
+                id: Date.now() + Math.random().toString(),
+                timestamp,
+                message: `CRASHED: ${errorMsg}`, 
+             });
+
+             // Optional: Log the trace inside the crash if you want
+             if (Array.isArray(errorDetails.processTrace)) {
+                 errorDetails.processTrace.forEach(trace => {
+                     newEntries.push({
+                        id: Date.now() + Math.random().toString(),
+                        timestamp,
+                        message: trace.msg ? `> ${trace.msg}` : `> ${JSON.stringify(trace)}`,
+                     });
+                 });
+             }
+          } 
+          // CASE B: Standard Concurrency Test Result
+          else {
+             newEntries.push({
+               id: Date.now() + Math.random().toString(),
+               timestamp,
+               message: `${res.status} ${res.name}: ${res.duration}`,
+             });
+          }
         });
       }
     }
