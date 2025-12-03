@@ -1,0 +1,21 @@
+### DELETE a title by ID
+DELETE http://localhost:3000/title-basics/delete/tt99999994?startYear=1995
+
+### Crash at Prepate (Crash 2 while writing on 2)
+POST http://localhost:3000/test/crash-1/1
+Content-Type: application/json
+
+### Crash at Commit (Crash 2 while writing on 2)
+POST http://localhost:3000/test/crash-1/2
+Content-Type: application/json
+
+### Crash at Prepare (Crash 2 while writing on 1)
+POST http://localhost:3000/test/crash-2/1
+Content-Type: application/json
+
+### Crash at Commit (Crash 2 while writing on 1)
+POST http://localhost:3000/test/crash-2/2
+Content-Type: application/json
+
+### CRASH NODE 1
+POST http://localhost:3000/test/crash

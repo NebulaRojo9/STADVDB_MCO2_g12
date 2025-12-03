@@ -26,7 +26,10 @@ export async function receivePrepare(req, res) {
 
 export async function receiveCommit(req, res) {
   try {
-    const result = await internalService.handleCommit(req.body.transactionId);
+    const { transactionId, payload } = req.body;
+
+    const result = await internalService.handleCommit(transactionId, payload);
+
     res.status(200).json(result);
   } catch (error) {
     console.error('RECEIVE COMMIT ERROR: ', error);

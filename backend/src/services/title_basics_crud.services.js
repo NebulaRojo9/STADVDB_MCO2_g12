@@ -89,7 +89,7 @@ export async function createTitle(data, delay = 0) {
   const pool = await getDB();
   if (delay > 0) await sleep(delay);
 
-  const { delay: _ignored, ...dbData } = data || {};
+  const { delay: _ignoredDelay, testCheckpoint: _ignoredCheckpoint, ...dbData } = data || {};
   if (Object.keys(dbData).length === 0) return;
 
   const columns = Object.keys(dbData);

@@ -184,3 +184,16 @@ export const redo = async (transactionId, action, payload) => {
         }
     }
 }
+
+export const checkIfAborted = async (transactionId) => {
+    // 1. Get the full history for this ID
+    const transaction = await getTransactionLog(transactionId);
+
+    // 2. If it doesn't exist, it wasn't aborted (it was never started or lost)
+    if (!transaction) {
+        return false;
+    }
+
+    // 3. Check if the final status was ABORT
+    return transaction.lastStatus === 'ABORT';
+};
