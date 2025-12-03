@@ -52,6 +52,7 @@ export async function findById(id, delay = 0) {
 export async function findAllFromNode() {
   const pool = await getDB();
   const [rows] = await pool.query('SELECT * FROM title_basics');
+  console.log("\nROWS: ", rows)
   return rows;
 }
 
