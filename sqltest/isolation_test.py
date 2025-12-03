@@ -17,7 +17,7 @@ DB_NAME = os.getenv("NODE1_DB")
 # The row we will use for testing
 TEST_ID = "tt1234567" 
 ORIGINAL_TITLE = "Should be in B"
-
+PHANTOM_CATEGORY = "TestCat"
 ISOLATION_LEVELS = [
     'READ UNCOMMITTED',
     'READ COMMITTED',
@@ -36,12 +36,24 @@ def get_connection():
     )
 
 def reset_data():
-    """Resets the title back to original so the next test is clean."""
+    """
+    Resets data on Master (Node A). 
+    In a real cluster, we sleep briefly to ensure Node B (Replica) catches up.
+    """
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # 1. Reset the Single Row
     cursor.execute("UPDATE title_basics SET primaryTitle = %s WHERE tconst = %s", (ORIGINAL_TITLE, TEST_ID))
+    
+    # 2. Reset the Range Data (Delete phantoms from previous runs)
+    cursor.execute("DELETE FROM title_basics WHERE genres = %s", (PHANTOM_CATEGORY,))
+    
     conn.commit()
     conn.close()
+    
+    # Wait for replication lag (Simulating consistency for Node B)
+    time.sleep(0.5)
 
 # --- TEST WORKERS ---
 
@@ -136,6 +148,53 @@ def worker_write_write_B(iso_level):
     finally:
         conn.close()
 
+def worker_phantom_reader(iso_level):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"SET SESSION TRANSACTION ISOLATION LEVEL {iso_level}")
+        conn.begin()
+        
+        # 1st Count
+        cursor.execute("SELECT COUNT(*) FROM title_basics WHERE genres = %s", (PHANTOM_CATEGORY,))
+        res1 = cursor.fetchone()[0]
+        print(f"   [Reader] 1st Count: {res1} rows")
+        
+        time.sleep(2) # Wait for writer to insert a new row
+        
+        # 2nd Count
+        cursor.execute("SELECT COUNT(*) FROM title_basics WHERE genres = %s", (PHANTOM_CATEGORY,))
+        res2 = cursor.fetchone()[0]
+        
+        is_phantom_prevented = (res1 == res2)
+        print(f"   [Reader] 2nd Count: {res2} rows (Phantom Prevented? {is_phantom_prevented})")
+        
+        conn.commit()
+    except Exception as e:
+        print(f"   [Reader] Error: {e}")
+    finally:
+        conn.close()
+
+def worker_phantom_writer():
+    time.sleep(0.5) # Let reader start
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        conn.begin()
+        print("   [Writer] Inserting new 'Phantom' row...")
+        # Inserting a NEW row that matches the reader's WHERE clause
+        new_id = "tt7654321"
+        cursor.execute(
+            "INSERT INTO title_basics (tconst, primaryTitle, genres) VALUES (%s, 'Phantom Row', %s)", 
+            (new_id, PHANTOM_CATEGORY)
+        )
+        conn.commit()
+        print("   [Writer] Committed.")
+    except Exception as e:
+        print(f"   [Writer] Error (Likely blocked by Serializable): {e}")
+    finally:
+        conn.close()
+
 # --- MAIN CONTROLLER ---
 
 def run_suite():
@@ -168,6 +227,23 @@ def run_suite():
         reset_data()
         t1 = threading.Thread(target=worker_write_write_A, args=(level,))
         t2 = threading.Thread(target=worker_write_write_B, args=(level,))
+        t1.start(); t2.start()
+        t1.join(); t2.join()
+
+        # --- SCENARIO 4: PHANTOM READS ---
+        # This is the only test that distinguishes Repeatable Read from Serializable
+        print(f"\n--- Test Case 4: Phantom Reads (Range Query) ---")
+        reset_data()
+        
+        # Insert one initial row so the count isn't always 0
+        conn = get_connection()
+        conn.cursor().execute("INSERT INTO title_basics (tconst, primaryTitle, genres) VALUES ('tt_init', 'Init', %s)", (PHANTOM_CATEGORY,))
+        conn.commit()
+        conn.close()
+
+        t1 = threading.Thread(target=worker_phantom_reader, args=(level,))
+        t2 = threading.Thread(target=worker_phantom_writer)
+        
         t1.start(); t2.start()
         t1.join(); t2.join()
 
