@@ -27,7 +27,6 @@ export const readTitle = async (req, res) => {
 
 export const readTitleAll = async (req, res) => {
   try {
-    console.log("READ ALL CALLED\n")
     let localTitles = await titleService.findAllFromNode();
     // Flag to check if it should aggregate from peers or just return its rows
     if (req.query.internal === 'true') {

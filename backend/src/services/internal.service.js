@@ -44,7 +44,6 @@ startCleanUpService();
 
 export const aggregateAllTitlesFromPeers = async () => {
   let responses = [];
-  console.log("AGGREGATE ALL CALLED")
 
   const peersToQuery = PEER_NODES.filter(pUrl => 
     pUrl !== process.env.NODE_URL
