@@ -475,6 +475,29 @@ export const handleAbort = async (transactionId) => {
   return { status: 'ABORTED', processTrace: processTrace.get() };
 }
 
+// Helper to decide if a specific peer needs this data
+const shouldReplicateToNode = (peerUrl, payload) => {
+  const year = parseInt(payload.startYear);
+  
+  // 1. MASTER NODE (Node 1) - Always accepts everything
+  // Replace with your actual Master URL/Env check
+  if (peerUrl.includes(process.env.NODE_A_URL)) { 
+    return true; 
+  }
+
+  // 2. FRAGMENT A (Node 2) - Only accepts < 2000
+  if (peerUrl.includes(process.env.NODE_B_URL)) {
+    return year < 2000;
+  }
+
+  // 3. FRAGMENT B (Node 3) - Only accepts >= 2000
+  if (peerUrl.includes(process.env.NODE_C_URL)) {
+    return year >= 2000;
+  }
+
+  return false; // Unknown node, safeguard
+};
+
 export const performRecovery = async () => {
   console.log("Checking log file for recovery");
 
@@ -484,55 +507,58 @@ export const performRecovery = async () => {
   for (const [transactionId, data] of transactions) {
     const { lastStatus, action, payload } = data; 
 
-    // Options for last status:
-    // Prepare
-    // Ready
-    // Commit/Abort
-
-    if (lastStatus === 'PREPARE') { // abort abort abort
-      console.warn(`[RECOVERY] Found orphaned transaction ${transactionId} (Action: ${action}). Rolling back.`);
-
+    if (lastStatus === 'PREPARE') { 
+      console.warn(`[RECOVERY] Found orphaned transaction ${transactionId}. Rolling back.`);
       await walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery' });
       recoveryCount++;
-    } else if (lastStatus === 'READY') { // unsure, so check other nodes
-      console.warn(`[RECOVERY] Found orphaned but ready transaction ${transactionId}. Checking other nodes' status...`)
+
+    } else if (lastStatus === 'READY') { 
+      console.warn(`[RECOVERY] Found ready transaction ${transactionId}. Checking peers...`)
       const decision = await walServices.askPeersForDecision(transactionId, PEER_NODES);
       
-      // console.log(decision);
       if (decision === 'COMMIT') {
         console.log(`[RECOVERY] Peers say COMMIT. Committing ${transactionId}`);
         await walServices.writeLog(transactionId, action, "COMMIT", { reason: 'Crash Recovery '});
         await walServices.redo(transactionId, action, payload);
       } else {
-        console.log(`[RECOVERY] At least 1 ABORTED. Aborting ${transactionId}`);
+        console.log(`[RECOVERY] Peers say ABORT. Aborting ${transactionId}`);
         await walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery '})
       }
-    } else if (lastStatus === 'COMMIT') { // redo transaction if it is a commit
-      console.log(`[RECOVERY] Found committed transaction ${transactionId} (Action: ${action}). Comitting...`);
+
+    } else if (lastStatus === 'COMMIT') { 
+      console.log(`[RECOVERY] Found committed transaction ${transactionId}. Re-applying...`);
       
-      await walServices.redo(transactionId, action, payload) // redo locally first
+      // 1. Redo Locally (Always do this first)
+      await walServices.redo(transactionId, action, payload); 
 
-      console.log(`[RECOVERY] Contacting peers to make sure they commit as well...`);
-
-      // Use your existing 'receiveCommit' endpoint on peers
-      const commitPromises = PEER_NODES.map(nodeURL => 
-          axios.post(`${nodeURL}/internal/commit`, { 
-              transactionId, 
-              payload: payload // <--- Pass the data here!
-          })
-          .catch(err => console.warn(`Peer ${nodeURL} unreachable during recovery`))
+      // 2. Filter Peers based on Fragmentation Logic
+      const relevantPeers = PEER_NODES.filter(peerUrl => 
+        shouldReplicateToNode(peerUrl, payload)
       );
-      
-      await Promise.all(commitPromises);
+
+      if (relevantPeers.length > 0) {
+        console.log(`[RECOVERY] Replicating to relevant peers: ${relevantPeers.join(', ')}`);
+
+        const commitPromises = relevantPeers.map(nodeURL => 
+           axios.post(`${nodeURL}/internal/commit`, { 
+               transactionId, 
+               payload 
+           })
+           .catch(err => console.warn(`Peer ${nodeURL} unreachable during recovery`))
+        );
+        
+        await Promise.all(commitPromises);
+      } else {
+        console.log(`[RECOVERY] No other peers need this data fragment.`);
+      }
 
     } else {
-      console.warn(`[RECOVERY] Found aborted transaction ${transactionId} (Action: ${action}). Rolling back.`);
+      console.warn(`[RECOVERY] Found aborted transaction ${transactionId}. Rolling back.`);
     }
   }
 
-  if (recoveryCount > 0) {
-    console.log(`[WAL] Recovery complete, Rolled back ${recoveryCount} unfinished transactions`);
-  } else {
-    console.log(`[WAL] No unfinished transactions found`);
-  }
+  console.log(recoveryCount > 0 
+    ? `[WAL] Recovery complete. Rolled back ${recoveryCount} transactions.`
+    : `[WAL] Recovery complete. No unfinished transactions.`
+  );
 }
