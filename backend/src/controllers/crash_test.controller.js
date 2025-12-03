@@ -2,11 +2,6 @@ import axios from 'axios';
 import 'dotenv/config';
 import * as testUtils from '../utils/crash_utils.js'; // <--- Updated Import
 
-const NODE_URL = `http://localhost:${process.env.PORT}`;
-const NODE_1 = `http://localhost:3000`;
-const NODE_2 = `http://localhost:3001`;
-const NODE_3 = `http://localhost:3002`;
-
 export const triggerCrash = (req, res) => {
     // Default to 'true' if enable is not explicitly false
     const enable = req.body.enable !== false; 
@@ -68,13 +63,13 @@ export const writeNodeFCrashF = async (req, res) => {
   try {
     // 1. Arm Node 2 (Coordinator) to crash during its internal processing
     // This tells Node 2: "Next time you run a transaction step, die."
-    await axios.post(`${NODE_2}/test/crash`, { enable: true, type: 'HARD' });
+    await axios.post(`${process.env.NODE_B_URL}/test/crash`, { enable: true, type: 'HARD' });
     console.log("-> Node 2 (Coordinator) armed to crash.");
 
     // 2. Send Write Request to Node 2
     
     // We expect this request to fail because the server processing it will die.
-    await axios.post(`${NODE_2}/title-basics/create`, payload);
+    await axios.post(`${process.env.NODE_B_URL}/title-basics/create`, payload);
     
     // If we reach here, the test FAILED because the server didn't crash
     res.json({ status: 'UNEXPECTED SUCCESS', message: 'Node 2 should have crashed but returned success.' });
@@ -121,13 +116,13 @@ export const writeNodeCCrashF = async (req, res) => {
   try {
     // 1. Arm Node 2 (Coordinator) to crash during its internal processing
     // This tells Node 2: "Next time you run a transaction step, die."
-    await axios.post(`${NODE_2}/test/crash`, { enable: true, type: 'HARD' });
+    await axios.post(`${process.env.NODE_B_URL}/test/crash`, { enable: true, type: 'HARD' });
     console.log("-> Node 2 (Coordinator) armed to crash.");
 
     // 2. Send Write Request to Node 2
     
     // We expect this request to fail because the server processing it will die.
-    await axios.post(`${NODE_1}/title-basics/create`, payload);
+    await axios.post(`${process.env.NODE_A_URL}/title-basics/create`, payload);
     
     // If we reach here, the test FAILED because the server didn't crash
     res.json({ status: 'UNEXPECTED SUCCESS', message: 'Node 2 should have crashed but returned success.' });
