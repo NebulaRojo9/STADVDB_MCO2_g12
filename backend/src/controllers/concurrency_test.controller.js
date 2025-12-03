@@ -151,29 +151,27 @@ export const testWriteWrite = async (req, res) => {
       try {
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Note: axios.delete requires 'data' property for body
-        await axios.delete(`${NODE_2}/delete/${id}`, {
-          data: { startYear, delay: 0 },
+        await axios.put(`${NODE_2}/update/${id}`, {
+          startYear,
+          delay: 0,
+          primaryTitle: 'Write B',
         });
-        return { name: 'Tx B (Fast Delete)', duration: Date.now() - start, status: 'OK' };
+        return { name: 'Tx B (Fast Write)', duration: Date.now() - start, status: 'OK' };
       } catch (e) {
         return { name: 'Tx B', error: e.message, duration: Date.now() - start };
       }
     })(),
 
-    // REQUEST C: Fast Update on Node 3 (EXCLUSIVE - Must Wait)
+    // REQUEST C: Fast Delete on Node 3 (EXCLUSIVE - Must Wait)
     (async () => {
       const start = Date.now();
       try {
         // Wait slightly longer to see if it queues behind B
+        // Note: axios.delete requires 'data' property for body
         await new Promise((resolve) => setTimeout(resolve, 200));
 
-        await axios.put(`${NODE_3}/update/${id}`, {
-          startYear,
-          delay: 0,
-          primaryTitle: 'Write C',
-        });
-        return { name: 'Tx C (Fast Update)', duration: Date.now() - start, status: 'OK' };
+        await axios.delete(`${NODE_3}/delete/${id}`, {data: { startYear, delay: 0 }});
+        return { name: 'Tx C (Fast Delete)', duration: Date.now() - start, status: 'OK' };
       } catch (e) {
         return { name: 'Tx C', error: e.message, duration: Date.now() - start };
       }
