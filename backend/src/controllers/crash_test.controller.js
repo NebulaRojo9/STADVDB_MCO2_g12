@@ -80,8 +80,15 @@ export const writeNodeFCrashF = async (req, res) => {
     
     res.json({
       scenario: 'Write to Node 2 (Coordinator) -> Crash Node 2 (Self)',
-      expectation: 'Node 2 crashes during processing (handlePrepare). Client receives "socket hang up" or network error.',
-      results: [{ error: error.message, duration }] // Should be "socket hang up" or similar
+      expectation: 'Node 2 crashes during processing. Client receives network error.',
+      results: [{ 
+        NetworkError: {
+          error: error.message,
+          details: "Coordinator crashed locally (Socket Hang Up)",
+          processTrace: [] // Empty trace since it crashed immediately
+        },
+        duration 
+      }] 
     });
   } 
 };
@@ -134,11 +141,20 @@ export const writeNodeCCrashF = async (req, res) => {
 
     console.log(`-> Transaction failed as expected: ${error.message}`);
     
+    const errorData = isNetworkError ? error.message : error.response.data;
+
     res.json({
       scenario: 'Write to Node 1 (Coordinator) -> Crash Node 2 (Participant)',
-      expectation: 'Node 2 crashes. Node 1 detects failure/timeout and returns 500/409 Abort error.',
-      results: [{ NetworkError: isNetworkError ? error.message : error.response.data, duration }]
-
+      expectation: 'Node 2 crashes. Node 1 detects failure/timeout and returns Abort error.',
+      results: [{ 
+          NetworkError: {
+             // If errorData is an object (from axios response), keep it, otherwise wrap string
+             error: typeof errorData === 'string' ? errorData : "Transaction Failed",
+             details: errorData, 
+             processTrace: errorData.processTrace || [] // Pass trace if the Coordinator sent one back
+          }, 
+          duration 
+      }]
     });
   } 
 };
