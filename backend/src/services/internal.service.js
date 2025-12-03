@@ -5,7 +5,7 @@ import { registry } from './crud_registry.js'
 import * as walServices from './wal.service.js'
 import 'dotenv/config';
 import { createTrace } from '../utils/trace.js';
-import { checkTestState } from './test.services.js';
+import { checkTestState } from '../utils/crash_utils.js';
 
 const PEER_NODES = process.env.PEERS ? process.env.PEERS.split(',') : [];
 
@@ -127,7 +127,7 @@ export const startReadTitle = async (id, startYear = undefined, delay = 0) => {
  *  data: req.body
  * }
  */
-export const startTransaction = async (payload, isLocal = false) => {
+export const startTransaction = async (payload, testCheckpoint = 0, isLocal = false) => {
   const transactionId = uuidv4();
   const timestamp = Date.now();
   const processTrace = createTrace()
@@ -169,9 +169,16 @@ export const startTransaction = async (payload, isLocal = false) => {
   processTrace.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} sending to peers ${targetNodes}`)
   console.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} sending to peers ${targetNodes}`)
 
-  walServices.writeLog(transactionId, payload.action, "PREPARE", payload);
+  await walServices.writeLog(transactionId, payload.action, "PREPARE", payload);
   console.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'PREPARE', ${payload}`);
   processTrace.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'PREPARE', ${payload}`);
+
+  // CRASH TEST HEREEEEE
+  console.log("skibidy")
+  console.log(testCheckpoint)
+
+  if (testCheckpoint === 1)
+    await checkTestState();
 
   // REPLICATION LOGIC
 
@@ -179,13 +186,23 @@ export const startTransaction = async (payload, isLocal = false) => {
     const preparePromises = targetNodes.map(nodeURL => {
       processTrace.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} sending [PREPARE] to peer ${nodeURL}`)
       console.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} sending [PREPARE] to peer ${nodeURL}`)
-      return axios.post(`${nodeURL}/internal/prepare`, { transactionId, timestamp, data: payload })
-        .then(res => {
+      
+      const payloadWithCheckpoint = { 
+          ...payload, 
+          testCheckpoint: testCheckpoint // Re-attach it so the peer knows to crash!
+      };
+      
+      return axios.post(`${nodeURL}/internal/prepare`, { 
+          transactionId, 
+          timestamp, 
+          data: payloadWithCheckpoint // Send the enriched payload
+      })
+      .then(res => {
           if (res.data.processTrace && Array.isArray(res.data.processTrace)) {
             processTrace.get().push(...res.data.processTrace);
           }
           return res.data
-        })  // get data of response ("YES"|"NO")
+      })
     });
 
     // Inject local operation
@@ -207,15 +224,19 @@ export const startTransaction = async (payload, isLocal = false) => {
     if (failedResponse) {
       const reason = failedResponse.error || "One or more nodes voted NO";
       
-      walServices.writeLog(transactionId, payload.action, "ABORT", { error: reason });
+      await walServices.writeLog(transactionId, payload.action, "ABORT", { error: reason });
       console.log(`[WAL:${process.env.NODE_URL}] Updated: ${transactionId}, ABORT, ${reason}`);
       
       throw new Error(reason); 
     }
 
-    walServices.writeLog(transactionId, payload.action, "COMMIT", payload);
+    await walServices.writeLog(transactionId, payload.action, "COMMIT", payload);
     console.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'COMMIT', ${payload}`);
     processTrace.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'COMMIT', ${payload}`);
+
+    // CRASH TEST HEREEEEE
+    if (testCheckpoint === 2)
+      await checkTestState();
 
     const commitPromises = targetNodes.map(nodeURL => {
       processTrace.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} sending [COMMIT] to peer ${nodeURL}`)
@@ -266,7 +287,7 @@ export const startTransaction = async (payload, isLocal = false) => {
     
     await Promise.all(abortPromises);
     
-    walServices.writeLog(transactionId, payload.action, "ABORT", {error: " Coordinator Exception "})
+    await walServices.writeLog(transactionId, payload.action, "ABORT", {error: " Coordinator Exception "})
     console.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: " Coordinator Exception "}`);
     processTrace.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', {error: " Coordinator Exception "}`);
     processTrace.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} aborted successfully`)
@@ -306,9 +327,14 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
     return { vote: "NO", error: error.message, processTrace: processTrace.get()}
   }
   try {
-    walServices.writeLog(transactionId, payload.action, "READY", payload); // site promises it can commit if asked
+    await walServices.writeLog(transactionId, payload.action, "READY", payload); // site promises it can commit if asked
     console.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'READY', ${payload}`);
     processTrace.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'READY', ${payload}`);
+
+    if (payload.testCheckpoint === 1) { 
+      console.warn(`[TEST] Hit Checkpoint 1 (Participant Readied). Checking state...`);
+      await checkTestState(); 
+    }
 
     await handler.validate(payload);
 
@@ -319,7 +345,7 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
     return { vote: 'YES', processTrace: processTrace.get() };
   } catch (error) {
     // Recovery???
-    walServices.writeLog(transactionId, payload.action, "ABORT", { error: error.message })
+    await walServices.writeLog(transactionId, payload.action, "ABORT", { error: error.message })
     console.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', error: ${error.message}`);
     processTrace.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${payload.action}, 'ABORT', error: ${error.message}`);
     lockManager.release(resourceId, transactionId)
@@ -331,40 +357,72 @@ export const handlePrepare = async (transactionId, timestamp, payload) => {
 
 // 2nd PHASE (DECISION MAKING)
 // TODO: ADD CHECK FOR MULTIPLE CALLS
-export const handleCommit = async (transactionId) => {
+export const handleCommit = async (transactionId, recoveryPayload = null) => {
   const processTrace = createTrace();
 
   if (committedHistory.has(transactionId)) {
     return { status: 'COMMITTED_ALREADY', processTrace: processTrace.get()};
   }
 
-  const txState = pendingTransactions.get(transactionId);
+  let txState = pendingTransactions.get(transactionId);
+
+  const isAborted = await walServices.checkIfAborted(transactionId); 
+
+  if (isAborted) {
+      console.warn(`[TM] Overriding previous ABORT for ${transactionId} because Coordinator confirmed COMMIT.`);
+      // Proceed to execute! We act as if the abort never happened.
+  }
+
   let action = "UNKNOWN";
+  let payload, resourceId;
   if (txState) {
     action = txState.payload.action
-    walServices.writeLog(transactionId, action, "COMMIT", txState.payload);
+    await walServices.writeLog(transactionId, action, "COMMIT", txState.payload);
     console.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${action}, "COMMIT", ${txState.payload}`);
     processTrace.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${action}, "COMMIT", ${txState.payload}`);
     processTrace.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} received [COMMIT]`)
     console.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} received [COMMIT]`)
+    
+    payload = txState.payload;
+    resourceId = txState.resourceId
+
+    if (payload.testCheckpoint === 2) { 
+      console.warn(`[TEST] Hit Checkpoint 2 (Participant Committed). Checking state...`);
+      await checkTestState(); 
+    }
+  } else if (recoveryPayload) {
+    
+    console.warn(`[TM] Resurrecting transaction ${transactionId} using Recovery Payload.`);
+
+    action = recoveryPayload.action;
+    payload = recoveryPayload;
+    // The only time this gets hit is if it skips the if (txState) which only happens in recovery commits
+    await walServices.writeLog(transactionId, action, "COMMIT", payload);
+    console.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${action}, "COMMIT", ${payload}`);
+    processTrace.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${action}, "COMMIT", ${payload}`);
+    processTrace.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} received [COMMIT]`)
+    console.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} received [COMMIT]`)
+
   } else {
     processTrace.log(`No pending transaction found for ID: ${transactionId}`);
     console.error(`No pending transaction found for ID: ${transactionId}`);
     // We log an error to WAL, but we can't log the specific action or payload
-    walServices.writeLog(transactionId, "UNKNOWN", "COMMIT_ERROR", { error: "No pending transaction found" });
+    await walServices.writeLog(transactionId, "UNKNOWN", "COMMIT_ERROR", { error: "No pending transaction found" });
     
     return { status: "ERROR", processTrace: processTrace.get()}
   }
-  const { payload, resourceId } = txState;
   try {
-    const stillLocked = lockManager.isLockedBy(resourceId, transactionId);
-    if (!stillLocked) {
-      processTrace.log(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
-      console.error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
-      return { status: "ERROR", processTrace: processTrace.get()}
+    if (txState && resourceId) {
+      const stillLocked = lockManager.isLockedBy(resourceId, transactionId);
+      if (!stillLocked) {
+        processTrace.log(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
+        console.error(`Lock for resource ${resourceId} is no longer held by transaction ${transactionId}`);
+        return { status: "ERROR", processTrace: processTrace.get()}
+      }
     }
 
     const handler = registry[payload.action]
+    console.log("executing action!");
     const result = await handler.execute(payload)
     
     // Clean up
@@ -381,7 +439,7 @@ export const handleCommit = async (transactionId) => {
     console.error(`[TM:${process.env.NODE_URL}] Tx ${transactionId} commit failed`, e.message)
     return { status: 'ERROR', processTrace: processTrace.get()};
   } finally {
-    if (txState && txState.resourceId) {
+    if (txState && resourceId) {
       await lockManager.release(txState.resourceId, transactionId);
       processTrace.log(`[LM:${process.env.NODE_URL}] Tx ${transactionId} lock released`)
       console.log(`[LM:${process.env.NODE_URL}] Tx ${transactionId} lock released`)
@@ -397,7 +455,7 @@ export const handleAbort = async (transactionId) => {
   let action = "UNKNOWN"
   if (txState && txState.resourceId) {
     action = txState.payload.action
-    walServices.writeLog(transactionId, action, "ABORT", txState.payload);
+    await walServices.writeLog(transactionId, action, "ABORT", txState.payload);
     console.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${action}, "ABORT", ${txState.payload}`);
     processTrace.log(`[WAL:${process.env.NODE_URL}] LOG Updated: ${transactionId}, ${action}, "ABORT", ${txState.payload}`);
     processTrace.log(`[TM:${process.env.NODE_URL}] Tx ${transactionId} received [ABORT]`)
@@ -430,7 +488,7 @@ export const performRecovery = async () => {
     if (lastStatus === 'PREPARE') { // abort abort abort
       console.warn(`[RECOVERY] Found orphaned transaction ${transactionId} (Action: ${action}). Rolling back.`);
 
-      walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery' });
+      await walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery' });
       recoveryCount++;
     } else if (lastStatus === 'READY') { // unsure, so check other nodes
       console.warn(`[RECOVERY] Found orphaned but ready transaction ${transactionId}. Checking other nodes' status...`)
@@ -439,15 +497,30 @@ export const performRecovery = async () => {
       // console.log(decision);
       if (decision === 'COMMIT') {
         console.log(`[RECOVERY] Peers say COMMIT. Committing ${transactionId}`);
-        walServices.writeLog(transactionId, action, "COMMIT", { reason: 'Crash Recovery '});
-        walServices.redo(transactionId, action, payload);
+        await walServices.writeLog(transactionId, action, "COMMIT", { reason: 'Crash Recovery '});
+        await walServices.redo(transactionId, action, payload);
       } else {
         console.log(`[RECOVERY] At least 1 ABORTED. Aborting ${transactionId}`);
-        walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery '})
+        await walServices.writeLog(transactionId, action, "ABORT", { reason: 'Crash Recovery '})
       }
     } else if (lastStatus === 'COMMIT') { // redo transaction if it is a commit
-      console.log(`[RECOVERY] Found committed transaction ${transactionId} (Action: ${action}). Comitting...`)
-      walServices.redo(transactionId, action, payload)
+      console.log(`[RECOVERY] Found committed transaction ${transactionId} (Action: ${action}). Comitting...`);
+      
+      await walServices.redo(transactionId, action, payload) // redo locally first
+
+      console.log(`[RECOVERY] Contacting peers to make sure they commit as well...`);
+
+      // Use your existing 'receiveCommit' endpoint on peers
+      const commitPromises = PEER_NODES.map(nodeURL => 
+          axios.post(`${nodeURL}/internal/commit`, { 
+              transactionId, 
+              payload: payload // <--- Pass the data here!
+          })
+          .catch(err => console.warn(`Peer ${nodeURL} unreachable during recovery`))
+      );
+      
+      await Promise.all(commitPromises);
+
     } else {
       console.warn(`[RECOVERY] Found aborted transaction ${transactionId} (Action: ${action}). Rolling back.`);
     }
