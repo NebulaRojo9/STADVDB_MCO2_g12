@@ -86,7 +86,7 @@ export const writeNodeFCrashF = async (req, res) => {
     res.json({
       scenario: 'Write to Node 2 (Coordinator) -> Crash Node 2 (Self)',
       expectation: 'Node 2 crashes during processing (handlePrepare). Client receives "socket hang up" or network error.',
-      results: { error: error.message, duration } // Should be "socket hang up" or similar
+      results: [{ error: error.message, duration }] // Should be "socket hang up" or similar
     });
   } 
 };
@@ -142,7 +142,7 @@ export const writeNodeCCrashF = async (req, res) => {
     res.json({
       scenario: 'Write to Node 1 (Coordinator) -> Crash Node 2 (Participant)',
       expectation: 'Node 2 crashes. Node 1 detects failure/timeout and returns 500/409 Abort error.',
-      results: { NetworkError: isNetworkError ? error.message : error.response.data, duration }
+      results: [{ NetworkError: isNetworkError ? error.message : error.response.data, duration }]
 
     });
   } 
