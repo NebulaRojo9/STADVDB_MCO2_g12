@@ -1,22 +1,22 @@
 // routes/test.routes.js
 import { Router } from 'express';
-import * as testController from '../controllers/test.controller.js';
+import * as crashTestController from '../controllers/crash_test.controller.js'
 import * as concurrencyTestController from '../controllers/concurrency_test.controller.js';
 
 const router = Router();
 
-// POST /test/crash -> Body: { "enable": true }
-router.post('/crash', testController.triggerCrash);
-
-// POST /test/delay -> Body: { "delay": 10000 }
-router.post('/delay', testController.setDelay);
-
-// POST /test/reset
-router.post('/reset', testController.resetState);
+// Helper Routes for Crash
+router.post('/crash', crashTestController.triggerCrash);
+router.post('/delay', crashTestController.setDelay);
+router.post('/reset', crashTestController.resetState);
 
 // GET TEST CASES FOR CONCURRENCY TESTING
 router.get('/concurrency-1', concurrencyTestController.testReadRead);
 router.get('/concurrency-2', concurrencyTestController.testWriteRead);
 router.get('/concurrency-3', concurrencyTestController.testWriteWrite);
+
+// Crash test routes
+router.get('/crash-1/:testCheckpoint', crashTestController.writeNodeFCrashF);
+router.get('/crash-2/:testCheckpoint', crashTestController.writeNodeCCrashF)
 
 export default router;

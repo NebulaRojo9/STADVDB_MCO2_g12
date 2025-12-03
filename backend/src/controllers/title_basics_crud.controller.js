@@ -86,7 +86,7 @@ export const createTitle = async (req, res) => {
       data: data, // The payload to write
       startYear: data.startYear, // SHARD KEY: Used to route to correct nodes
       delay: data.delay, // DELAY for simulation in CRUD
-    });
+    }, data.testCheckpoint);
 
     // 3. Handle Result
     if (result.success) {

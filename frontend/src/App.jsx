@@ -229,11 +229,36 @@ const fetchDataFromBackend = useCallback(async () => {
 
       if (Array.isArray(responseJson.results)) {
         responseJson.results.forEach((res) => {
-          newEntries.push({
-            id: Date.now() + Math.random().toString(),
-            timestamp,
-            message: `${res.status} ${res.name}: ${res.duration}ms`,
-          });
+          // CASE A: Crash Test Result (Nested NetworkError)
+          if (res.NetworkError) {
+             const errorDetails = res.NetworkError;
+             const errorMsg = errorDetails.details || errorDetails.error || "Unknown Error";
+             
+             newEntries.push({
+                id: Date.now() + Math.random().toString(),
+                timestamp,
+                message: `CRASHED: ${errorMsg}`, 
+             });
+
+             // Optional: Log the trace inside the crash if you want
+             if (Array.isArray(errorDetails.processTrace)) {
+                 errorDetails.processTrace.forEach(trace => {
+                     newEntries.push({
+                        id: Date.now() + Math.random().toString(),
+                        timestamp,
+                        message: trace.msg ? `> ${trace.msg}` : `> ${JSON.stringify(trace)}`,
+                     });
+                 });
+             }
+          } 
+          // CASE B: Standard Concurrency Test Result
+          else {
+             newEntries.push({
+               id: Date.now() + Math.random().toString(),
+               timestamp,
+               message: `${res.status} ${res.name}: ${res.duration}`,
+             });
+          }
         });
       }
     }
@@ -548,7 +573,18 @@ const fetchDataFromBackend = useCallback(async () => {
       case "Concurrent Writes":
         endpoint = "/test/concurrency-3";
         break;
-      // TODO: ADD RECOVERY CASE
+      case "Case 1: Fragment Node Write → Fragment node crash (after PREPARE)":
+        endpoint = "/test/crash-1/1"
+        break
+      case "Case 2: Fragment Node Write → Fragment node crash (after COMMIT)":
+        endpoint = "/test/crash-1/2"
+        break
+      case "Case 3: Central Node Write → Fragment node crash (after PREPARE)":
+        endpoint = "/test/crash-2/1"
+        break
+      case "Case 4: Central Node Write → Fragment node crash (after COMMIT)":
+        endpoint = "/test/crash-2/2"
+        break
       default:
         console.warn("Unknown test case:", testName);
         return;
@@ -859,35 +895,35 @@ const fetchDataFromBackend = useCallback(async () => {
               <div className="space-y-2">
                 <button
                   onClick={() =>
-                    runTest("Case 1: Side Node → Central Node Write Fail")
+                    runTest("Case 1: Fragment Node Write → Fragment node crash (after PREPARE)")
                   }
                   className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md transition-all text-sm font-medium text-gray-700"
                 >
-                  Case 1: Side Node → Central Node Write Fail
+                  Case 1: Fragment Node Write → Fragment node crash (after PREPARE)
                 </button>
                 <button
                   onClick={() =>
-                    runTest("Case 2: Central Node Recovery Missed Writes")
+                    runTest("Case 2: Fragment Node Write → Fragment node crash (after COMMIT)")
                   }
                   className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md transition-all text-sm font-medium text-gray-700"
                 >
-                  Case 2: Central Node Recovery Missed Writes
+                  Case 2: Fragment Node Write → Fragment node crash (after COMMIT)
                 </button>
                 <button
                   onClick={() =>
-                    runTest("Case 3: Central Node → Side Node Write Fail")
+                    runTest("Case 3: Central Node Write → Fragment node crash (after PREPARE)")
                   }
                   className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md transition-all text-sm font-medium text-gray-700"
                 >
-                  Case 3: Central Node → Side Node Write Fail
+                  Case 3: Central Node Write → Fragment node crash (after PREPARE)
                 </button>
                 <button
                   onClick={() =>
-                    runTest("Case 4: Side Node Recovery Missed Writes")
+                    runTest("Case 4: Central Node Write → Fragment node crash (after COMMIT)")
                   }
                   className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md transition-all text-sm font-medium text-gray-700"
                 >
-                  Case 4: Side Node Recovery Missed Writes
+                  Case 4: Central Node Write → Fragment node crash (after COMMIT)
                 </button>
               </div>
             </div>
