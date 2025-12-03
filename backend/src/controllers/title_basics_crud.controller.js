@@ -38,9 +38,6 @@ export const readTitleAll = async (req, res) => {
     const peerTitles = await aggregateAllTitlesFromPeers();
     const combined = localTitles.concat(peerTitles);
 
-    console.log(peerTitles)
-    console.log(combined)
-
     // De-duplicate
     const uniqueTitles = {};
     combined.forEach((title) => {
@@ -49,7 +46,10 @@ export const readTitleAll = async (req, res) => {
       }
     });
 
+    
     const finalTitles = Object.values(uniqueTitles);
+    console.log("\n\nFINAL TITLES");
+    console.log(finalTitles);
 
     console.log(`[READ] Returning ${finalTitles.length} total rows.`);
     return res.status(200).json(finalTitles);
